@@ -1,11 +1,4 @@
-import os
-import numpy as np
-import pandas as pd
-import glob
-import re
-from scipy.signal import iirnotch, butter, lfilter
-
-data_path = glob.glob("../../../../Database/EMG_IMU")
+from signal_processing import *
 
 
 class Subject:
@@ -42,16 +35,3 @@ class IndividualMovement(Movement):
         super().__init__()
 
 
-class Signal:
-    def __init__(self):
-        self.data = None
-
-
-class EMG(Signal):
-    def __init__(self):
-        super().__init__()
-
-
-class IMU(Signal):
-    def __init__(self):
-        super().__init__()
