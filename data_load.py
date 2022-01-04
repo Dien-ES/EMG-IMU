@@ -12,17 +12,24 @@ class Subject:
 
 
 class Day:
-    def __init__(self):
+    def __init__(self, day):
+        self.day = day
         self.BBS = None
         self.funcs = []
         self.indivs = []
 
+    def data_load(self):
+        return 0
+
 
 class Movement:
-    def __init__(self):
-        self.motion = None
-        self.EMGs = []
-        self.IMUs = []
+    def __init__(self, motion, session):
+        self.session = session
+        self.motion = motion
+        self.signals = []
+
+    def data_load(self):
+        return 0
 
 
 class FunctionalMovement(Movement):
