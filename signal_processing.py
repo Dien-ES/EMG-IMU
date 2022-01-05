@@ -1,5 +1,11 @@
 import numpy as np
 from scipy.signal import iirnotch, butter, lfilter
+import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set_style("whitegrid")
+
+SENSORS = ['TP', 'LD', 'TFL', 'QF', 'GC', 'TA']
+COLUMNS = [f'R_{s}'for s in SENSORS] + [f'L_{s}'for s in SENSORS]
 
 
 class Signal:
@@ -9,8 +15,8 @@ class Signal:
         self.name = name
         self.fs = fs
 
-    def plot(self, color, alpha, axes=None, sharey=True):
-        if not axes:
+    def plot(self, color, alpha, label=None, axes=None, sharey=True):
+        if axes is None:
             _, axes = plt.subplots(2, 6, figsize=(30, 10),
                                      sharex=True,
                                      sharey=sharey,
@@ -18,37 +24,62 @@ class Signal:
 
         for idx in range(12):
             col = idx
-            ax = axes[0, idx]
             if idx > 5:
                 idx -= 6
                 ax = axes[1, idx]
+            else:
+                ax = axes[0, idx]
 
-            ax.set_title(data.iloc[:, col].columns[0], fontsize=25)
+            if label is None:
+                ax.set_title(COLUMNS[col], fontsize=25)
+            else:
+                ax.set_title(label, fontsize=25)
             ax.tick_params(labelsize=15)
             if idx == 0:
-                ax.set_ylabel('Amplitude (mV)', fontsize=20)
-            ax.set_xlabel('Time (s)', fontsize=20)
+                ax.set_ylabel('Amplitude [mV]', fontsize=20)
+            ax.set_xlabel('Time [s]', fontsize=20)
             sns.lineplot(ax=ax,
                          label=self.name,
                          color=color,
                          alpha=alpha,
                          x=self.xrange[:self.data.shape[0]],
-                         y=self.data.iloc[:, col])
+                         y=self.data[:, col])
 
 
 class EMG:
-    def __init__(self, data, filter='despike', method='1', fs=1259):
+    def __init__(self, data, fs=1259):
+        self.columns = COLUMNS
         xrange = np.arange(0, len(data) * 1 / 1259, 1 / 1259)
-        proc_data = Processing(data, fs)
 
-        self.raw = Signal(data, xrange, 'Raw', fs)
-        self.norm = Signal(proc_data.normalization(),
+        proc_data = Processing(np.array(data), fs)
+        self.raw = Signal(proc_data.data, xrange, 'Raw', fs)
+
+        proc_data.normalization()
+        self.norm = Signal(proc_data.data,
                            xrange, 'Normalization', fs)
 
-        self.filtering = Signal(proc_data.filter(filter),
-                                xrange, f'Filter_({filter})', fs)
-        self.rms = Signal(proc.data.rms(method),
-                          xrange * int(fs * 0.2), f'RMS_({method})', fs)
+        proc_data.filter()
+        self.filtering = Signal(proc_data.data,
+                                xrange, f'Filter', fs)
+
+        proc_data.rectification()
+        self.rect = Signal(proc_data.data,
+                           xrange, 'Rectification', fs)
+
+        proc_data.rms()
+        self.rms = Signal(proc_data.data,
+                          xrange * int(fs * 0.2), f'RMS', fs)
+
+    def prep_comparison_plot(self):
+        fig, axes = plt.subplots(2, 6, figsize=(30, 10),
+                                 sharex=True,
+                                 sharey=True,
+                                 constrained_layout=True)
+
+        self.norm.plot(color='grey', alpha=0.5, axes=axes)
+        self.filtering.plot(color='yellow', alpha=0.5, axes=axes)
+        self.rect.plot(color='green', alpha=0.5, axes=axes)
+        self.rms.plot(color='red', alpha=1.0, axes=axes)
 
 
 class IMU:
@@ -71,33 +102,24 @@ class Processing:
 
     def normalization(self):
         self.data = self.data - self.data.mean(axis=0)
-        return self.data
 
-    def filter(self, method='despike'):
+    def filter(self, method='bandpass'):
         if method == "notch":
-            return self.notch_pass_filter(60, 5)
+            self.notch_pass_filter(60, 5)
         elif method == "bandpass":
-            return self.butter_bandpass_filter(10, 500, 4)
+            self.butter_bandpass_filter(20, 500, 4)
         elif method == "nsigma":
-            return self.sigma_filter()
+            self.sigma_filter()
         elif method == "despike":
-            return self.despike_filter()
+            self.despike_filter()
 
     def rectification(self):
         self.data = abs(self.data)
-        return self.data
-
-    def rms(self, method='rms_1'):
-        if method == '1':
-            return self.rms_1()
-        else:
-            return self.rms_2()
 
     # filter
     def notch_pass_filter(self, center, interval):
-        b, a = signal.iirnotch(center, center / interval, self.fs)
-        self.data = signal.lfilter(b, a, self.data)
-        return self.data
+        b, a = iirnotch(center, center / interval, self.fs)
+        self.data = lfilter(b, a, self.data)
 
     def butter_bandpass_filter(self, lowcut, highcut, order):
         nyq = 0.5 * self.fs
@@ -105,7 +127,6 @@ class Processing:
         high = highcut / nyq
         b, a = butter(order, [low, high], btype='band')
         self.data = lfilter(b, a, self.data)
-        return self.data
 
     def sigma_filter(self):
         filter_list = []
@@ -134,7 +155,6 @@ class Processing:
             filter_list += [data]
 
         self.data = np.array(filter_list).T
-        return self.data
 
     def despike_filter(self, th=1.e-8):
         filter_list = []
@@ -168,10 +188,9 @@ class Processing:
                 filter_list += [y]
 
         self.data = np.array(filter_list).T
-        return self.data
 
     # RMS
-    def rms_1(self):
+    def rms(self):
         frame = int(self.fs * 0.5)
         step = int(self.fs * 0.2)
         rms = []
@@ -179,11 +198,3 @@ class Processing:
             x = self.data[i - frame:i, :]
             rms.append(np.sqrt(np.mean(x ** 2, axis=0)))
         self.data = np.array(rms)
-        return self.data
-
-    def rms_2(self, window_size=int(1259/6)):
-        data = np.power(self.data, 2)
-        window = np.ones(window_size) / float(window_size)
-        window_rms = np.sqrt(np.convolve(data, window, 'same'))
-        self.data = np.apply_along_axis(window_rms, 1, data, window_size)
-        return self.data

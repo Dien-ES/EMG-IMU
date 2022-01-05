@@ -22,46 +22,30 @@ class Subject:
         self.sid = sid
         self.days = []
 
-    def data_load(self):
-        # days for 문
-        return 0
-
 
 class Day:
-    def __init__(self, day):
+    def __init__(self, group, sid, day, BBS):
         self.day = day
-        self.BBS = None
-        self.funcs = []
-        self.indivs = []
-
-    def data_load(self):
-        # funcs, indivs for문
-        return 0
+        self.BBS = BBS
+        self.funcs = [Movement(group, sid, 'func_mov', day, motion)
+                      for motion in FUNC_MV]
+        self.indivs = [Movement(group, sid, 'indiv_mov', day, motion)
+                       for motion in INDIV_MV]
 
 
 class Movement:
-    def __init__(self, motion, session):
-        self.session = session
-        self.motion = motion
-        self.signals = []
-
-
-class FunctionalMovement(Movement):
-    def __init__(self):
-        super().__init__()
-
-    # DataLoader
-
-
-class IndividualMovement(Movement):
-    def __init__(self):
-        super().__init__()
-
-    # DataLoader
+    def __init__(self, *info):
+        self.motion = info[4]
+        self.path_list = sorted(glob.glob(os.path.join(DATA_PATH,
+                                                       info[0],
+                                                       f'R{info[1]:03}_*',
+                                                       f'{info[2]}_{info[3]}',
+                                                       f'{info[4]}_*.csv')))
+        self.signals = [DataLoader(path) for path in self.path_list]
 
 
 class DataLoader:
-    def __init__(self, *file_path):
+    def __init__(self, file_path):
         self.file_path = file_path
 
         emg, imu = self.data_load()
@@ -69,8 +53,7 @@ class DataLoader:
         self.imu = IMU(imu)
 
     def data_load(self):
-        path = glob.glob(os.path.join(DATA_PATH, *self.file_path))[0]
-        data = pd.read_csv(path)
+        data = pd.read_csv(self.file_path)
         emg = self.emg_data(data)
         imu = self.imu_data(data)
         return emg, imu
