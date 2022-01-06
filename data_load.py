@@ -14,19 +14,25 @@ for side in ['r', 'l']:
     for task in ['habd', 'ke', 'apf', 'adf']:
         for power in ['max', 'min']:
             INDIV_MV += [f'{side}_{task}_{power}']
+D_INFO = pd.read_csv(os.path.join(DATA_PATH, 'Disabled_info.csv'))
 
 
 class Subject:
     def __init__(self, group, sid):
         self.group = group
         self.sid = sid
-        self.days = []
+        self.days = [Day(group, sid, day) for day in [1,2]]
 
 
 class Day:
-    def __init__(self, group, sid, day, BBS):
+    def __init__(self, group, sid, day):
+        self.BBS = 60
+        self.af_side = None
+        if group == 'Disabled':
+            self.BBS = D_INFO.query(f'Sid=={sid}')[f'BBS_{day}'].values[0]
+            self.af_side = D_INFO.query(f'Sid=={sid}')['AffectedSide'].values[0]
+
         self.day = day
-        self.BBS = BBS
         self.funcs = [Movement(group, sid, 'func_mov', day, motion)
                       for motion in FUNC_MV]
         self.indivs = [Movement(group, sid, 'indiv_mov', day, motion)
