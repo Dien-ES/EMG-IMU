@@ -21,33 +21,62 @@ class Subject:
     def __init__(self, group, sid):
         self.group = group
         self.sid = sid
-        self.days = [Day(group, sid, day) for day in [1,2]]
+        self.af_side = None
+        if group == 'Disabled':
+            self.af_side = D_INFO.query(f'Sid=={sid}')['AffectedSide'].values[0]
+        self.days = self.load(group, sid)
+
+    def load(self, group, sid):
+        days = []
+        for day in [1, 2]:
+            d = Day(group, sid, day)
+            if (d.funcs is not None) | (d.indivs is not None):
+                days += [d]
+
+        if len(days) > 0:
+            return days
+        else:
+            return None
 
 
 class Day:
     def __init__(self, group, sid, day):
         self.BBS = 60
-        self.af_side = None
         if group == 'Disabled':
             self.BBS = D_INFO.query(f'Sid=={sid}')[f'BBS_{day}'].values[0]
-            self.af_side = D_INFO.query(f'Sid=={sid}')['AffectedSide'].values[0]
 
         self.day = day
-        self.funcs = [Movement(group, sid, 'func_mov', day, motion)
-                      for motion in FUNC_MV]
-        self.indivs = [Movement(group, sid, 'indiv_mov', day, motion)
-                       for motion in INDIV_MV]
+        self.funcs = self.load(group, sid, 'func_mov', FUNC_MV, day)
+        self.indivs = self.load(group, sid, 'indiv_mov', INDIV_MV, day)
+
+    def load(self, group, sid, movement, MV, day):
+        moves = []
+        for motion in MV:
+            move = Movement(group, sid, movement, day, motion)
+            if move.signals is not None:
+                moves += [move]
+
+        if len(moves) > 0:
+            return moves
+        else:
+            return None
 
 
 class Movement:
     def __init__(self, *info):
         self.motion = info[4]
-        self.path_list = sorted(glob.glob(os.path.join(DATA_PATH,
-                                                       info[0],
-                                                       f'R{info[1]:03}_*',
-                                                       f'{info[2]}_{info[3]}',
-                                                       f'{info[4]}_*.csv')))
-        self.signals = [DataLoader(path) for path in self.path_list]
+        self.signals = self.load(*info)
+
+    def load(self, *info):
+        path_list = sorted(glob.glob(os.path.join(DATA_PATH,
+                                                  info[0],
+                                                  f'R{info[1]:03}_*',
+                                                  f'{info[2]}_{info[3]}',
+                                                  f'{info[4]}*.csv')))
+        if len(path_list) > 0:
+            return [DataLoader(path) for path in path_list]
+        else:
+            return None
 
 
 class DataLoader:
