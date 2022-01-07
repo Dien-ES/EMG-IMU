@@ -74,14 +74,18 @@ class Movement:
                                                   f'{info[2]}_{info[3]}',
                                                   f'{info[4]}*.csv')))
         if len(path_list) > 0:
-            return [DataLoader(path, info[0], info[1]) for path in path_list]
+            return [DataLoader(path, info[0], info[1], info[4])
+                    for path in path_list]
         else:
             return None
 
 
 class DataLoader:
-    def __init__(self, file_path, group, sid):
+    def __init__(self, file_path, group, sid, motion):
         self.file_path = file_path
+        self.group = group
+        self.sid = sid
+        self.motion = motion
 
         emg, imu = self.data_load(group, sid)
         self.emg = EMG(emg)
@@ -91,6 +95,8 @@ class DataLoader:
         data = pd.read_csv(self.file_path)
         if group == 'Disabled':
             af_side = D_INFO.query(f'Sid=={sid}')['AffectedSide'].values[0]
+        else:
+            af_side = 'None'
         emg = self.emg_data(data, group, af_side)
         imu = self.imu_data(data, group, af_side)
         return emg, imu
