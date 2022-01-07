@@ -74,42 +74,58 @@ class Movement:
                                                   f'{info[2]}_{info[3]}',
                                                   f'{info[4]}*.csv')))
         if len(path_list) > 0:
-            return [DataLoader(path) for path in path_list]
+            return [DataLoader(path, info[0], info[1]) for path in path_list]
         else:
             return None
 
 
 class DataLoader:
-    def __init__(self, file_path):
+    def __init__(self, file_path, group, sid):
         self.file_path = file_path
 
-        emg, imu = self.data_load()
+        emg, imu = self.data_load(group, sid)
         self.emg = EMG(emg)
         self.imu = IMU(imu)
 
-    def data_load(self):
+    def data_load(self, group, sid):
         data = pd.read_csv(self.file_path)
-        emg = self.emg_data(data)
-        imu = self.imu_data(data)
+        if group == 'Disabled':
+            af_side = D_INFO.query(f'Sid=={sid}')['AffectedSide'].values[0]
+        emg = self.emg_data(data, group, af_side)
+        imu = self.imu_data(data, group, af_side)
         return emg, imu
 
-    def emg_data(self, data):
+    def emg_data(self, data, group, af_side):
         emg = data.loc[
             data['X[s]'].notnull(), ['EMG' in col for col in data.columns]]
-        emg.columns =\
+        emg.columns = \
             [re.sub(': EMG \d+', '', i).replace(' ', '_') for i in emg.columns]
         emg = emg[630:-630] * 1000
-        return emg.reset_index(drop=True)
+        emg = emg.reset_index(drop=True).copy()
 
-    def imu_data(self, data):
+        if (group == 'Disabled') & (af_side == 'Left'):
+            columns = emg.columns
+            a_emg = pd.concat([emg.iloc[:, 6:], emg.iloc[:, :6]], axis=1)
+            a_emg.columns = columns
+            return a_emg
+        return emg
+
+    def imu_data(self, data, group, af_side):
         imu = data.loc[
             data['X[s].1'].notnull(),
             [True if re.search('ACC|GYRO', col) else False
              for col in data.columns]]
-        imu.columns =\
+        imu.columns = \
             [re.sub(':| \d+', '', i).replace(' ', '_').replace('.', '_')
              for i in imu.columns]
         end_time = data['X[s]'].dropna().iloc[-1]
         imu = imu[data['X[s].1'].dropna() < end_time].reset_index(drop=True)
         imu = imu[74:-74]
-        return imu.reset_index(drop=True)
+        imu = imu.reset_index(drop=True).copy()
+
+        if (group == 'Disabled') & (af_side == 'Left'):
+            columns = imu.columns
+            a_imu = pd.concat([imu.iloc[:, 36:], imu.iloc[:, :36]], axis=1)
+            a_imu.columns = columns
+            return a_imu
+        return imu
