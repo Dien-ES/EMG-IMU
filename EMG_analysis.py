@@ -1,5 +1,7 @@
 import pickle
 from statannot import add_stat_annotation
+import pingouin as pg
+
 
 from EMG_parameter import *
 
@@ -38,7 +40,7 @@ def melting_df(params, mv, cond, contr):
     return df_melt
 
 
-def mvc_boxplot(df_melt):
+def mvc_boxplot(df_melt, ylim=None):
     df_pivot = df_melt.pivot_table(index=['Side', 'Sensor'],
                                    columns=['Contraction', 'Group'],
                                    aggfunc='count')
@@ -61,7 +63,8 @@ def mvc_boxplot(df_melt):
                         x='Contraction', y='value',
                         hue='Group', palette='Set3')
 
-            #         ax.set_ylim(0, 40)
+            if ylim is not None:
+                ax.set_ylim(0, ylim)
             ax.set_xticklabels([f'MVC\n({n1}:{n2})', f'subMVC\n({n3}:{n4})'])
             ax.set_title(f'{side}_{sensor}', fontsize=20)
             ax.set_ylabel('')
@@ -82,3 +85,32 @@ def mvc_boxplot(df_melt):
                                 verbose=2,
                                 comparisons_correction=None
                                 )
+
+
+def icc_df(indiv_params, cond):
+    df = pd.DataFrame(columns=['Group', 'Sid'] + COLUMNS)
+    for param in indiv_params:
+        info = []
+        motion = param.info['motion']
+        if cond == 'group':
+            info += [param.info['group'] == 'Disabled']
+        else:
+            info += [param.info['BBS'] < 45]
+        info += [param.info['sid']]
+        info += [motion.split('_')[-1]]
+        info += ['_'.join(motion.split('_')[:2])]
+        rms = list(np.nanmax(param.rms.data, axis=0))
+
+        new_df = pd.DataFrame(info + rms).T
+        new_df.columns = ['Group', 'Sid', 'Power', 'Motion'] + COLUMNS
+        df = pd.concat([df, new_df])
+    return df
+
+
+def rms_icc(df, group, power, sensor):
+    cond_df = df[
+        (df['Group'] == group) & (df['Power'] == power)].reset_index(drop=True)
+    icc = pg.intraclass_corr(data=cond_df,
+                             targets='Motion',
+                             raters='Sid', ratings=sensor)
+    return icc
