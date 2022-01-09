@@ -1,6 +1,7 @@
 import numpy as np
 from tqdm import tqdm
 import pickle
+from signal_processing import *
 from data_load import *
 
 MV2SENS = {'habd': 'TFL', 'ke': 'QF', 'apf': 'GC', 'adf': 'TA'}
@@ -36,13 +37,24 @@ class ContRefer:
 
 class Parameter:
     def __init__(self, rms, contrf, info):
+        xrange = np.arange(0, len(rms) * 1 / 1259, 1 / 1259) * int(1259 * 0.2)
         self.info = info
-        self.rms = rms
-        self.mvc = self.ratio(contrf.max_contr)
-        self.submvc = self.ratio(contrf.sub_contr)
+        self.rms = Signal(rms, xrange, 'RMS')
+        self.mvc = Signal(self.ratio(contrf.max_contr), xrange, 'MVC')
+        self.submvc = Signal(self.ratio(contrf.sub_contr), xrange, 'subMVC')
 
     def ratio(self, contraction):
-        return self.rms/np.array(list(contraction.values()))
+        return self.rms.data/np.array(list(contraction.values()))
+
+    def comparison_plot(self):
+        fig, axes = plt.subplots(2, 6, figsize=(30, 10),
+                                 sharex=True,
+                                 sharey=True,
+                                 constrained_layout=True)
+
+        self.rms.plot(color='blue', alpha=1.0, axes=axes)
+        self.mvc.plot(color='red', alpha=1.0, axes=axes)
+        self.submvc.plot(color='green', alpha=1.0, axes=axes)
 
 
 def subject_movement_params(group, sid):
