@@ -2,7 +2,6 @@ import pickle
 from statannot import add_stat_annotation
 import pingouin as pg
 
-
 from EMG_parameter import *
 
 
@@ -40,7 +39,7 @@ def melting_df(params, mv, cond, contr):
     return df_melt
 
 
-def mvc_boxplot(df_melt, ylim=None):
+def mvc_boxplot(df_melt, mv, ylim=None):
     df_pivot = df_melt.pivot_table(index=['Side', 'Sensor'],
                                    columns=['Contraction', 'Group'],
                                    aggfunc='count')
@@ -61,7 +60,8 @@ def mvc_boxplot(df_melt, ylim=None):
             sns.boxplot(ax=ax,
                         data=data,
                         x='Contraction', y='value',
-                        hue='Group', palette='Set3')
+                        hue='Group', palette='Set3',
+                        showfliers = False)
 
             if ylim is not None:
                 ax.set_ylim(0, ylim)
@@ -70,7 +70,7 @@ def mvc_boxplot(df_melt, ylim=None):
             ax.set_ylabel('')
             ax.set_xlabel('')
             ax.tick_params(labelsize=15)
-            # ax.legend([], [], frameon=False)
+            ax.legend([], [], frameon=False)
             add_stat_annotation(ax,
                                 data=data,
                                 x='Contraction',
@@ -79,12 +79,13 @@ def mvc_boxplot(df_melt, ylim=None):
                                 box_pairs=[(('MVC', g1), ('MVC', g2)),
                                            (('subMVC', g1), ('subMVC', g2))],
                                 test='Mann-Whitney',  # -gt, -ls
-                                loc='inside',
+                                loc='outside',
                                 text_format='star',
                                 fontsize='large',
                                 verbose=2,
                                 comparisons_correction=None
                                 )
+    fig.suptitle(f'{mv}', fontweight="bold", fontsize=20)
 
 
 def icc_df(indiv_params, cond):
