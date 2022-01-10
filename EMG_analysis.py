@@ -44,7 +44,7 @@ def mvc_boxplot(df_melt, mv, ylim=None):
                                    columns=['Contraction', 'Group'],
                                    aggfunc='count')
 
-    fig, axes = plt.subplots(4, 2, figsize=(8, 12),
+    fig, axes = plt.subplots(4, 2, figsize=(6, 12),
                              sharey=True,
                              constrained_layout=True)
 
@@ -61,7 +61,7 @@ def mvc_boxplot(df_melt, mv, ylim=None):
                         data=data,
                         x='Contraction', y='value',
                         hue='Group', palette='Set3',
-                        showfliers = False)
+                        showfliers=False)
 
             if ylim is not None:
                 ax.set_ylim(0, ylim)
