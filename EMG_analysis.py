@@ -26,9 +26,10 @@ def melting_df(params, mv, cond, contr):
 
             if contr == 'MVC':
                 mvc = list(np.nanmax(param.mvc.data, axis=0))
-            else:
+            elif contr == 'subMVC':
                 mvc = list(np.nanmax(param.submvc.data, axis=0))
-
+            else:
+                mvc = list(np.nanmax(param.rms.data, axis=0))
             new_df = pd.DataFrame(group + mvc).T
             new_df.columns = ['Group'] + COLUMNS
             df = pd.concat([df, new_df])
@@ -36,6 +37,8 @@ def melting_df(params, mv, cond, contr):
     df_melt = df.melt(id_vars='Group', var_name='Sensor', value_name=contr)
     df_melt['Side'] = df_melt['Sensor'].str.split('_').str[0]
     df_melt['Sensor'] = df_melt['Sensor'].str.split('_').str[1]
+    df_melt[contr] = df_melt[contr].astype(float)
+    df_melt['Group'] = df_melt['Group'].astype(str)
     return df_melt
 
 
@@ -85,6 +88,52 @@ def mvc_boxplot(df_melt, mv, ylim=None):
                                 verbose=2,
                                 comparisons_correction=None
                                 )
+    fig.suptitle(f'{mv}', fontweight="bold", fontsize=20)
+
+
+def boxplot(df_melt, mv, contr, ylim=None):
+    df_pivot = df_melt.pivot_table(index=['Side', 'Sensor'],
+                                   columns=['Group'],
+                                   aggfunc='count')
+
+    fig, axes = plt.subplots(4, 2, figsize=(6, 12),
+                             sharey=True,
+                             constrained_layout=True)
+
+    for row, sensor in enumerate(['TFL', 'QF', 'GC', 'TA']):
+        for col, side in enumerate(['L', 'R']):
+            ax = axes[row, col]
+            n1, n2 = df_pivot[df_pivot.index == (side, sensor)].values[0]
+            data = df_melt[
+                (df_melt['Side'] == side) & (df_melt['Sensor'] == sensor)]
+            data = data.dropna().reset_index(drop=True)
+            g1, g2 = data['Group'].unique()
+            sns.boxplot(ax=ax,
+                        data=data,
+                        x='Group',
+                        y=contr,
+                        palette='Set3',
+                        showfliers=False)
+
+            if ylim is not None:
+                ax.set_ylim(0, ylim)
+            ax.set_xlabel(f'({n1}:{n2})', fontsize=14)
+            ax.set_ylabel(f'{side}_{sensor}', fontsize=20)
+            ax.tick_params(labelsize=15)
+            ax.legend([], [], frameon=False)
+            add_stat_annotation(ax,
+                                data=data,
+                                x='Group',
+                                y=contr,
+                                box_pairs=[(g1, g2)],
+                                test='Mann-Whitney',  # -gt, -ls
+                                loc='outside',
+                                text_format='star',
+                                fontsize='large',
+                                verbose=2,
+                                comparisons_correction=None
+                                )
+
     fig.suptitle(f'{mv}', fontweight="bold", fontsize=20)
 
 
