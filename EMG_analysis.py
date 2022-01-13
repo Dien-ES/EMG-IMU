@@ -138,7 +138,7 @@ def boxplot(df_melt, mv, contr, ylim=None):
 
 
 def icc_df(indiv_params, cond):
-    df = pd.DataFrame(columns=['Group', 'Sid'] + COLUMNS)
+    df = pd.DataFrame()
     for param in indiv_params:
         info = []
         motion = param.info['motion']
@@ -160,7 +160,10 @@ def icc_df(indiv_params, cond):
 def rms_icc(df, group, power, sensor):
     cond_df = df[
         (df['Group'] == group) & (df['Power'] == power)].reset_index(drop=True)
+    # for sid in cond_df['Sid'].unique():
+    #     if len(cond_df[cond_df['Sid'] == sid]) < 5:
+    #         cond_df = cond_df.loc[cond_df['Sid'] != sid].reset_index(drop=True)
     icc = pg.intraclass_corr(data=cond_df,
                              targets='Motion',
-                             raters='Sid', ratings=sensor)
+                             raters='Sid', ratings=sensor, nan_policy='omit')
     return icc
