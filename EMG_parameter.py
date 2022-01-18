@@ -83,7 +83,7 @@ def movement_params(params, movements, contrf, BBS):
         for signal in mv.signals:
             rms = signal.emg.rms.data
             info = {'sid': signal.sid, 'group': signal.group,
-                    'BBS': BBS, 'motion': signal.motion}
+                    'BBS': BBS, 'day': signal.day, 'motion': signal.motion}
             parameter = Parameter(rms, contrf, info)
             params += [parameter]
     return params

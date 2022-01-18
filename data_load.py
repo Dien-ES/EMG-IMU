@@ -74,17 +74,18 @@ class Movement:
                                                   f'{info[2]}_{info[3]}',
                                                   f'{info[4]}*.csv')))
         if len(path_list) > 0:
-            return [DataLoader(path, info[0], info[1], info[4])
+            return [DataLoader(path, info[0], info[1], info[3], info[4])
                     for path in path_list]
         else:
             return None
 
 
 class DataLoader:
-    def __init__(self, file_path, group, sid, motion):
+    def __init__(self, file_path, group, sid, day, motion):
         self.file_path = file_path
         self.group = group
         self.sid = sid
+        self.day = day
         self.motion = motion
 
         emg, imu = self.data_load(group, sid)

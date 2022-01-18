@@ -5,9 +5,9 @@ import pingouin as pg
 from EMG_parameter import *
 
 
-def mvc_submvc_concat(params, mv, cond):
-    mvc_df = melting_df(params, mv, cond, 'MVC')
-    submvc_df = melting_df(params, mv, cond, 'subMVC')
+def mvc_submvc_concat(params, mv, group_1='BBS', group_2=None):
+    mvc_df = melting_df(params, mv, 'MVC', group_1, group_2)
+    submvc_df = melting_df(params, mv, 'subMVC', group_1, group_2)
     df = pd.concat([mvc_df, submvc_df['subMVC']], axis=1)
     df_melt = df.melt(id_vars=['Group', 'Sensor', 'Side'],
                       var_name='Contraction')
@@ -15,25 +15,36 @@ def mvc_submvc_concat(params, mv, cond):
     return df_melt
 
 
-def melting_df(params, mv, cond, contr):
+def melting_df(params, mv, contr, group_1='BBS', group_2=None):
     df = pd.DataFrame(columns=['Group'] + COLUMNS)
     for param in params:
         if param.info['motion'] == mv:
-            if cond == 'group':
-                group = [param.info['group'] == 'Disabled']
-            else:
-                group = [param.info['BBS'] < 45]
-
+            info = []
             if contr == 'MVC':
-                mvc = list(np.nanmax(param.mvc.data, axis=0))
+                value = list(np.nanmax(param.mvc.data, axis=0))
             elif contr == 'subMVC':
-                mvc = list(np.nanmax(param.submvc.data, axis=0))
+                value = list(np.nanmax(param.submvc.data, axis=0))
             else:
-                mvc = list(np.nanmax(param.rms.data, axis=0))
-            new_df = pd.DataFrame(group + mvc).T
-            new_df.columns = ['Group'] + COLUMNS
+                value = list(np.nanmax(param.rms.data, axis=0))
+
+            info += [param.info['group'] == 'Disabled']
+            info += [param.info['BBS'] < 45]
+            info += [param.info['day'] == 1]
+            new_df = pd.DataFrame(info + value).T
+            new_df.columns = ['is_disabled', 'is_fallRisk',
+                              'is_firstDay'] + COLUMNS
             df = pd.concat([df, new_df])
 
+    if group_1 == 'BBS':
+        df['Group'] = df['is_fallRisk']
+    elif (group_1 == 'Healthy_1') & (group_2 == 'Disabled_1'):
+        df = df.loc[df['is_firstDay']].reset_index(drop=True)
+        df['Group'] = df['is_disabled']
+    else:
+        df = df.loc[df['is_disabled']].reset_index(drop=True)
+        df['Group'] = df['is_firstDay']
+
+    df = df.drop(['is_disabled', 'is_fallRisk', 'is_firstDay'], axis=1)
     df_melt = df.melt(id_vars='Group', var_name='Sensor', value_name=contr)
     df_melt['Side'] = df_melt['Sensor'].str.split('_').str[0]
     df_melt['Sensor'] = df_melt['Sensor'].str.split('_').str[1]
@@ -59,18 +70,17 @@ def mvc_boxplot(df_melt, mv, ylim=None):
             data = df_melt[
                 (df_melt['Side'] == side) & (df_melt['Sensor'] == sensor)]
             data = data.dropna().reset_index(drop=True)
-            g1, g2 = data['Group'].unique()
             sns.boxplot(ax=ax,
                         data=data,
                         x='Contraction', y='value',
                         hue='Group', palette='Set3',
+                        order=['False', 'True'],
                         showfliers=False)
 
             if ylim is not None:
                 ax.set_ylim(0, ylim)
             ax.set_xticklabels([f'MVC\n({n1}:{n2})', f'subMVC\n({n3}:{n4})'])
-            ax.set_title(f'{side}_{sensor}', fontsize=20)
-            ax.set_ylabel('')
+            ax.set_ylabel(f'{side}_{sensor}', fontsize=20)
             ax.set_xlabel('')
             ax.tick_params(labelsize=15)
             ax.legend([], [], frameon=False)
@@ -79,8 +89,8 @@ def mvc_boxplot(df_melt, mv, ylim=None):
                                 x='Contraction',
                                 y='value',
                                 hue='Group',
-                                box_pairs=[(('MVC', g1), ('MVC', g2)),
-                                           (('subMVC', g1), ('subMVC', g2))],
+                                box_pairs=[(('MVC', 'False'), ('MVC', 'True')),
+                                           (('subMVC', 'False'), ('subMVC', 'True'))],
                                 test='Mann-Whitney',  # -gt, -ls
                                 loc='outside',
                                 text_format='star',
@@ -107,12 +117,12 @@ def boxplot(df_melt, mv, contr, ylim=None):
             data = df_melt[
                 (df_melt['Side'] == side) & (df_melt['Sensor'] == sensor)]
             data = data.dropna().reset_index(drop=True)
-            g1, g2 = data['Group'].unique()
             sns.boxplot(ax=ax,
                         data=data,
                         x='Group',
                         y=contr,
                         palette='Set3',
+                        order=['False', 'True'],
                         showfliers=False)
 
             if ylim is not None:
@@ -125,7 +135,7 @@ def boxplot(df_melt, mv, contr, ylim=None):
                                 data=data,
                                 x='Group',
                                 y=contr,
-                                box_pairs=[(g1, g2)],
+                                box_pairs=[('False', 'True')],
                                 test='Mann-Whitney',  # -gt, -ls
                                 loc='outside',
                                 text_format='star',
