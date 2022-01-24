@@ -29,22 +29,22 @@ def melting_df(params, mv, contr, group_1='BBS', group_2=None):
 
             info += [param.info['group'] == 'Disabled']
             info += [param.info['BBS'] < 45]
-            info += [param.info['day'] == 1]
+            info += [param.info['day'] == 2]
             new_df = pd.DataFrame(info + value).T
             new_df.columns = ['is_disabled', 'is_fallRisk',
-                              'is_firstDay'] + COLUMNS
+                              'is_secondDay'] + COLUMNS
             df = pd.concat([df, new_df])
 
     if group_1 == 'BBS':
         df['Group'] = df['is_fallRisk']
     elif (group_1 == 'Healthy_1') & (group_2 == 'Disabled_1'):
-        df = df.loc[df['is_firstDay']].reset_index(drop=True)
+        df = df.loc[df['is_secondDay']].reset_index(drop=True)
         df['Group'] = df['is_disabled']
     else:
         df = df.loc[df['is_disabled']].reset_index(drop=True)
-        df['Group'] = df['is_firstDay']
+        df['Group'] = df['is_secondDay']
 
-    df = df.drop(['is_disabled', 'is_fallRisk', 'is_firstDay'], axis=1)
+    df = df.drop(['is_disabled', 'is_fallRisk', 'is_secondDay'], axis=1)
     df_melt = df.melt(id_vars='Group', var_name='Sensor', value_name=contr)
     df_melt['Side'] = df_melt['Sensor'].str.split('_').str[0]
     df_melt['Sensor'] = df_melt['Sensor'].str.split('_').str[1]
@@ -74,7 +74,7 @@ def mvc_boxplot(df_melt, mv, ylim=None):
                         data=data,
                         x='Contraction', y='value',
                         hue='Group', palette='Set3',
-                        order=['False', 'True'],
+                        # order=['False', 'True'],
                         showfliers=False)
 
             if ylim is not None:
