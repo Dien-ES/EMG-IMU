@@ -42,6 +42,10 @@ class Parameter:
         self.rms = Signal(rms, xrange, 'RMS')
         self.mvc = Signal(self.ratio(contrf.max_contr), xrange, 'MVC')
         self.submvc = Signal(self.ratio(contrf.sub_contr), xrange, 'subMVC')
+        self.mvc_amp = self.rms.data[:60].mean(axis=0)*50 <\
+                       np.nanmax(self.mvc.data, axis=0)
+        self.submvc_amp = self.rms.data[:60].mean(axis=0)*50 <\
+                          np.nanmax(self.submvc.data, axis=0)
 
     def ratio(self, contraction):
         return self.rms.data/np.array(list(contraction.values()))
