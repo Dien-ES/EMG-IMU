@@ -1,7 +1,9 @@
 import numpy as np
 from scipy.signal import iirnotch, butter, lfilter
 import matplotlib.pyplot as plt
+import neurokit2 as nk
 import seaborn as sns
+from tqdm import tqdm
 sns.set_style("whitegrid")
 
 SENSORS = ['TP', 'LD', 'TFL', 'QF', 'GC', 'TA']
@@ -54,11 +56,11 @@ class EMG:
         proc_data = Processing(np.array(data), fs)
         self.raw = Signal(proc_data.data, xrange, 'Raw', fs)
 
-        proc_data.normalization()
+        # proc_data.normalization()
         self.norm = Signal(proc_data.data,
                            xrange, 'Normalization', fs)
 
-        proc_data.filter()
+        proc_data.filter(method='nk_clean')
         self.filtering = Signal(proc_data.data,
                                 xrange, f'Filter', fs)
 
@@ -66,9 +68,10 @@ class EMG:
         self.rect = Signal(proc_data.data,
                            xrange, 'Rectification', fs)
 
+        proc_data.filter(method='despike')
         proc_data.rms()
         self.rms = Signal(proc_data.data,
-                          xrange * int(fs * 0.2), f'RMS', fs)
+                          xrange * int(fs * 0.25), f'RMS', fs)
 
     def prep_comparison_plot(self):
         fig, axes = plt.subplots(2, 6, figsize=(30, 10),
@@ -112,11 +115,17 @@ class Processing:
             self.sigma_filter()
         elif method == "despike":
             self.despike_filter()
+        elif method == 'nk_clean':
+            self.nk_clean()
 
     def rectification(self):
         self.data = abs(self.data)
 
     # filter
+    def nk_clean(self):
+        self.data = np.apply_along_axis(nk.emg_clean, axis=0,
+                                        arr=self.data, sampling_rate=1259)
+
     def notch_pass_filter(self, center, interval):
         b, a = iirnotch(center, center / interval, self.fs)
         self.data = lfilter(b, a, self.data)
@@ -127,6 +136,16 @@ class Processing:
         high = highcut / nyq
         b, a = butter(order, [low, high], btype='band')
         self.data = lfilter(b, a, self.data)
+
+    # RMS
+    def rms(self):
+        frame = int(self.fs * 0.5)
+        step = int(self.fs * 0.25)
+        rms = []
+        for i in range(frame, self.data.size, step):
+            x = self.data[i - frame:i, :]
+            rms.append(np.sqrt(np.mean(x ** 2, axis=0)))
+        self.data = np.array(rms)
 
     def sigma_filter(self):
         filter_list = []
@@ -156,7 +175,7 @@ class Processing:
 
         self.data = np.array(filter_list).T
 
-    def despike_filter(self, th=1.e-8):
+    def despike_filter(self, th=1.e-3):
         filter_list = []
         for idx in range(self.data.shape[1]):
             yi = self.data[:, idx].copy()
