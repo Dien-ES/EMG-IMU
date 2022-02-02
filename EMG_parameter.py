@@ -37,7 +37,7 @@ class ContRefer:
 
 class Parameter:
     def __init__(self, rms, contrf, info):
-        xrange = np.arange(0, len(rms) * 1 / 1259, 1 / 1259) * int(1259 * 0.2)
+        xrange = np.arange(0, len(rms) * 1 / 1259, 1 / 1259) * int(1259 * 0.25)
         self.info = info
         self.rms = Signal(rms, xrange, 'RMS')
         self.mvc = Signal(self.ratio(contrf.max_contr), xrange, 'MVC')
