@@ -1,6 +1,7 @@
 import pickle
 from statannot import add_stat_annotation
 import pingouin as pg
+from scipy.stats import chisquare, chi2_contingency
 
 from EMG_parameter import *
 
@@ -53,11 +54,11 @@ def melting_df(params, mv, contr, group_1='BBS', group_2=None):
     return df_melt
 
 
-def amplitude_melting_df(params, mv, contr, group_1, group_2):
+def amplitude_melting_df(params, mv, contr, group_1='BBS', group_2=None):
     df = pd.DataFrame(columns=['Group'] + COLUMNS)
     for param in params:
         if param.info['motion'] == mv:
-            for i, time in enumerate(list(range(1, 10))):
+            for i, time in enumerate([1.2, 1.4, 1.6, 1.8, 2.0, 3.0, 4.0, 5.0]):
                 info = []
                 if contr == 'MVC':
                     value = list(param.mvc_amp[i].astype(int))
@@ -84,15 +85,22 @@ def amplitude_melting_df(params, mv, contr, group_1, group_2):
         df = df.loc[df['is_disabled']].reset_index(drop=True)
         df['Group'] = df['is_secondDay']
 
-    df['Group'] = df['Group'].astype(str)
-    df = df.drop(['is_disabled', 'is_fallRisk', 'is_secondDay'], axis=1)
-    df_pivot = df.pivot_table(index='Group', columns='Times', aggfunc='sum')
-    df_pivot = df_pivot.T.reset_index()
-    df_pivot.columns = ['Sensor', 'Times', 'False', 'True']
-    df_melt = df_pivot.melt(id_vars=['Sensor', 'Times'], var_name='Group',
-                            value_vars=['False', 'True'], value_name=contr)
-    df_melt['Side'] = df_melt['Sensor'].str.split('_').str[0]
-    df_melt['Sensor'] = df_melt['Sensor'].str.split('_').str[1]
+    df_melt = pd.DataFrame()
+    for row, sensor in enumerate(['TFL', 'QF', 'GC', 'TA']):
+        for col, side in enumerate(['L', 'R']):
+            df_crosstab = pd.crosstab([df.Group, df.Times],
+                                      df[f'{side}_{sensor}'])
+            df_crosstab = df_crosstab.reset_index()
+            if 0 not in df_crosstab.columns:
+                df_crosstab[0] = 0
+            if 1 not in df_crosstab.columns:
+                df_crosstab[1] = 0
+            df_crosstab.columns = ['Group', 'Times', 'Minus', 'Plus']
+            df_crosstab['Side'] = side
+            df_crosstab['Sensor'] = sensor
+
+            df_melt = pd.concat([df_melt, df_crosstab]).reset_index(drop=True)
+    df_melt['Times'] = df_melt['Times'].astype(float)
     return df_melt
 
 
@@ -116,7 +124,7 @@ def mvc_boxplot(df_melt, mv, ylim=None):
             sns.boxplot(ax=ax,
                         data=data,
                         x='Contraction', y='value',
-                        hue='Group', palette='Set3',
+                        hue='Group', palette='Set2',
                         # order=['False', 'True'],
                         showfliers=False)
 
@@ -164,7 +172,7 @@ def boxplot(df_melt, mv, contr, ylim=None):
                         data=data,
                         x='Group',
                         y=contr,
-                        palette='Set3',
+                        palette='Set2',
                         order=['False', 'True'],
                         showfliers=False)
 
@@ -172,6 +180,7 @@ def boxplot(df_melt, mv, contr, ylim=None):
                 ax.set_ylim(0, ylim)
             ax.set_xlabel(f'({n1}:{n2})', fontsize=14)
             ax.set_ylabel(f'{side}_{sensor}', fontsize=20)
+
             ax.tick_params(labelsize=15)
             ax.legend([], [], frameon=False)
             add_stat_annotation(ax,
@@ -190,13 +199,25 @@ def boxplot(df_melt, mv, contr, ylim=None):
     fig.suptitle(f'{mv}', fontweight="bold", fontsize=20)
 
 
-def amplitude_barplot(df_melt, mv, contr, ylim=None):
+def amplitude_barplot(df_melt, mv, ylim=None):
     fig, axes = plt.subplots(4, 2, figsize=(12, 8),
                              sharey=True,
                              constrained_layout=True)
 
     for row, sensor in enumerate(['TFL', 'QF', 'GC', 'TA']):
         for col, side in enumerate(['L', 'R']):
+            xticklabels = []
+            for time in [1.2, 1.4, 1.6, 1.8, 2.0, 3.0, 4.0, 5.0]:
+                xo, xe = df_melt.loc[(df_melt['Side'] == side) & (
+                            df_melt['Sensor'] == sensor) & (
+                                                 df_melt['Times'] == time), [
+                                         'Minus', 'Plus']].values
+                if ((xo[0] == 0) & (xe[0] == 0)) | ((xo[1] == 0) & (xe[1] == 0)):
+                    xticklabels += [f'{time}\n']
+                else:
+                    _, p, _, _ = chi2_contingency([xo, xe])
+                    xticklabels += [f'{time}\n{pvalue_cut(p)}']
+
             ax = axes[row, col]
             data = df_melt[
                 (df_melt['Side'] == side) & (df_melt['Sensor'] == sensor)]
@@ -205,15 +226,28 @@ def amplitude_barplot(df_melt, mv, contr, ylim=None):
             sns.barplot(ax=ax,
                         data=data,
                         x='Times',
-                        y=contr,
+                        y='Plus',
                         hue='Group', palette='Set2')
 
             if ylim is not None:
                 ax.set_ylim(0, ylim)
             ax.set_ylabel(f'{side}_{sensor}', fontsize=20)
+            ax.set_xlabel('')
+            ax.set_xticklabels(xticklabels)
             ax.tick_params(labelsize=15)
             ax.legend([], [], frameon=False)
             fig.suptitle(f'{mv}', fontweight="bold", fontsize=20)
+
+
+def pvalue_cut(pvalue):
+    if pvalue < 0.001:
+        return "***"
+    elif pvalue < 0.01:
+        return "**"
+    elif pvalue < 0.05:
+        return "*"
+    else:
+        return ""
 
 
 def icc_df(indiv_params, cond):

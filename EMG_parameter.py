@@ -51,8 +51,8 @@ class Parameter:
 
     def amplitude(self, signal):
         amps = []
-        for i in list(range(1, 10)):
-            amp = signal.data[:60].mean(axis=0) * i < \
+        for i in [1.2, 1.4, 1.6, 1.8, 2.0, 3.0, 4.0, 5.0]:
+            amp = signal.data[:60].mean(axis=0) * i <= \
                   np.nanmax(signal.data, axis=0)
             amps += [amp]
         return np.array(amps)
