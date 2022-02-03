@@ -56,7 +56,7 @@ class EMG:
         proc_data = Processing(np.array(data), fs)
         self.raw = Signal(proc_data.data, xrange, 'Raw', fs)
 
-        # proc_data.normalization()
+        proc_data.normalization()
         self.norm = Signal(proc_data.data,
                            xrange, 'Normalization', fs)
 

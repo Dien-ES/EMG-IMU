@@ -24,7 +24,7 @@ def melting_df(params, mv, contr, group_1='BBS', group_2=None):
                 value = list(np.nanmax(param.mvc.data, axis=0))
             elif contr == 'subMVC':
                 value = list(np.nanmax(param.submvc.data, axis=0))
-            else:
+            elif contr == 'RMS':
                 value = list(np.nanmax(param.rms.data, axis=0))
 
             info += [param.info['group'] == 'Disabled']
@@ -38,7 +38,7 @@ def melting_df(params, mv, contr, group_1='BBS', group_2=None):
     if group_1 == 'BBS':
         df['Group'] = df['is_fallRisk']
     elif (group_1 == 'Healthy_1') & (group_2 == 'Disabled_1'):
-        df = df.loc[df['is_secondDay']].reset_index(drop=True)
+        df = df.loc[df['is_secondDay'] == False].reset_index(drop=True)
         df['Group'] = df['is_disabled']
     else:
         df = df.loc[df['is_disabled']].reset_index(drop=True)
@@ -50,6 +50,49 @@ def melting_df(params, mv, contr, group_1='BBS', group_2=None):
     df_melt['Sensor'] = df_melt['Sensor'].str.split('_').str[1]
     df_melt[contr] = df_melt[contr].astype(float)
     df_melt['Group'] = df_melt['Group'].astype(str)
+    return df_melt
+
+
+def amplitude_melting_df(params, mv, contr, group_1, group_2):
+    df = pd.DataFrame(columns=['Group'] + COLUMNS)
+    for param in params:
+        if param.info['motion'] == mv:
+            for i, time in enumerate(list(range(1, 10))):
+                info = []
+                if contr == 'MVC':
+                    value = list(param.mvc_amp[i].astype(int))
+                elif contr == 'subMVC':
+                    value = list(param.submvc_amp[i].astype(int))
+                elif contr == 'RMS':
+                    value = list(param.rms_amp[i].astype(int))
+
+                info += [param.info['group'] == 'Disabled']
+                info += [param.info['BBS'] < 45]
+                info += [param.info['day'] == 2]
+                info += [time]
+                new_df = pd.DataFrame(info + value).T
+                new_df.columns = ['is_disabled', 'is_fallRisk',
+                                  'is_secondDay', 'Times'] + COLUMNS
+                df = pd.concat([df, new_df])
+
+    if group_1 == 'BBS':
+        df['Group'] = df['is_fallRisk']
+    elif (group_1 == 'Healthy_1') & (group_2 == 'Disabled_1'):
+        df = df.loc[df['is_secondDay'] == False].reset_index(drop=True)
+        df['Group'] = df['is_disabled']
+    else:
+        df = df.loc[df['is_disabled']].reset_index(drop=True)
+        df['Group'] = df['is_secondDay']
+
+    df['Group'] = df['Group'].astype(str)
+    df = df.drop(['is_disabled', 'is_fallRisk', 'is_secondDay'], axis=1)
+    df_pivot = df.pivot_table(index='Group', columns='Times', aggfunc='sum')
+    df_pivot = df_pivot.T.reset_index()
+    df_pivot.columns = ['Sensor', 'Times', 'False', 'True']
+    df_melt = df_pivot.melt(id_vars=['Sensor', 'Times'], var_name='Group',
+                            value_vars=['False', 'True'], value_name=contr)
+    df_melt['Side'] = df_melt['Sensor'].str.split('_').str[0]
+    df_melt['Sensor'] = df_melt['Sensor'].str.split('_').str[1]
     return df_melt
 
 
@@ -145,6 +188,32 @@ def boxplot(df_melt, mv, contr, ylim=None):
                                 )
 
     fig.suptitle(f'{mv}', fontweight="bold", fontsize=20)
+
+
+def amplitude_barplot(df_melt, mv, contr, ylim=None):
+    fig, axes = plt.subplots(4, 2, figsize=(12, 8),
+                             sharey=True,
+                             constrained_layout=True)
+
+    for row, sensor in enumerate(['TFL', 'QF', 'GC', 'TA']):
+        for col, side in enumerate(['L', 'R']):
+            ax = axes[row, col]
+            data = df_melt[
+                (df_melt['Side'] == side) & (df_melt['Sensor'] == sensor)]
+            data = data.dropna().reset_index(drop=True)
+
+            sns.barplot(ax=ax,
+                        data=data,
+                        x='Times',
+                        y=contr,
+                        hue='Group', palette='Set2')
+
+            if ylim is not None:
+                ax.set_ylim(0, ylim)
+            ax.set_ylabel(f'{side}_{sensor}', fontsize=20)
+            ax.tick_params(labelsize=15)
+            ax.legend([], [], frameon=False)
+            fig.suptitle(f'{mv}', fontweight="bold", fontsize=20)
 
 
 def icc_df(indiv_params, cond):
