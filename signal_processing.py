@@ -207,13 +207,3 @@ class Processing:
                 filter_list += [y]
 
         self.data = np.array(filter_list).T
-
-    # RMS
-    def rms(self):
-        frame = int(self.fs * 0.5)
-        step = int(self.fs * 0.2)
-        rms = []
-        for i in range(frame, self.data.size, step):
-            x = self.data[i - frame:i, :]
-            rms.append(np.sqrt(np.mean(x ** 2, axis=0)))
-        self.data = np.array(rms)

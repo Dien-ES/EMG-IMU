@@ -24,7 +24,7 @@ def melting_df(params, mv, contr, group_1='BBS', group_2=None):
                 value = list(np.nanmax(param.mvc.data, axis=0))
             elif contr == 'subMVC':
                 value = list(np.nanmax(param.submvc.data, axis=0))
-            elif contr == 'RMS':
+            else:
                 value = list(np.nanmax(param.rms.data, axis=0))
 
             info += [param.info['group'] == 'Disabled']
@@ -63,7 +63,7 @@ def amplitude_melting_df(params, mv, contr, group_1, group_2):
                     value = list(param.mvc_amp[i].astype(int))
                 elif contr == 'subMVC':
                     value = list(param.submvc_amp[i].astype(int))
-                elif contr == 'RMS':
+                else:
                     value = list(param.rms_amp[i].astype(int))
 
                 info += [param.info['group'] == 'Disabled']
