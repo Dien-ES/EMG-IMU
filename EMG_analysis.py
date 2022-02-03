@@ -1,7 +1,7 @@
 import pickle
 from statannot import add_stat_annotation
 import pingouin as pg
-from scipy.stats import chisquare, chi2_contingency
+from scipy.stats import chisquare, chi2_contingency, pearsonr
 
 from EMG_parameter import *
 
@@ -102,6 +102,43 @@ def amplitude_melting_df(params, mv, contr, group_1='BBS', group_2=None):
             df_melt = pd.concat([df_melt, df_crosstab]).reset_index(drop=True)
     df_melt['Times'] = df_melt['Times'].astype(float)
     return df_melt
+
+
+def Disabled_BBS_RMS_variation(params, mv):
+    df = pd.DataFrame(columns=COLUMNS)
+    for param in params:
+        if param.info['motion'] == mv:
+            info = []
+            value = list(np.nanmax(param.rms.data, axis=0))
+
+            info += [param.info['group'] == 'Disabled']
+            info += [param.info['BBS']]
+            info += [param.info['day']]
+            info += [param.info['sid']]
+            new_df = pd.DataFrame(info + value).T
+            new_df.columns = ['is_disabled', 'BBS',
+                              'Day', 'Sid'] + COLUMNS
+            df = pd.concat([df, new_df])
+
+    df = df.loc[df['is_disabled']].reset_index(drop=True)
+    df = df.drop(['is_disabled'], axis=1)
+    if mv in FUNC_MV:
+        df = df.pivot_table(index=['Sid', 'Day'], aggfunc='mean').reset_index()
+
+    counts = df['Sid'].value_counts()
+    cond = [sid in counts[counts == 2].index for sid in df['Sid']]
+    df = df.loc[cond].reset_index(drop=True)
+
+    df2 = df.loc[df['Day'] == 2, 'BBS'].reset_index(drop=True)
+    df1 = df.loc[df['Day'] == 1, 'BBS'].reset_index(drop=True)
+    df_var = df2 - df1
+    for row, sensor in enumerate(['TFL', 'QF', 'GC', 'TA']):
+        for col, side in enumerate(['L', 'R']):
+            df2 = df.loc[df['Day'] == 2, f'{side}_{sensor}'].reset_index(drop=True)
+            df1 = df.loc[df['Day'] == 1, f'{side}_{sensor}'].reset_index(drop=True)
+            df_var = pd.concat([df_var, df2-df1], axis=1).reset_index(drop=True)
+
+    return df_var
 
 
 def mvc_boxplot(df_melt, mv, ylim=None):
@@ -237,6 +274,26 @@ def amplitude_barplot(df_melt, mv, ylim=None):
             ax.tick_params(labelsize=15)
             ax.legend([], [], frameon=False)
             fig.suptitle(f'{mv}', fontweight="bold", fontsize=20)
+
+
+def correlation_plot(df_var, mv):
+    fig, axes = plt.subplots(4, 2, figsize=(6, 12),
+                             sharey=True, sharex=True,
+                             constrained_layout=True)
+    for row, sensor in enumerate(['TFL', 'QF', 'GC', 'TA']):
+        for col, side in enumerate(['L', 'R']):
+            ax = axes[row, col]
+            data = df_var[['BBS', f'{side}_{sensor}']].reset_index(drop=True)
+            x = data[f'{side}_{sensor}'].astype(float)
+            y = data['BBS'].astype(float)
+            r, p = pearsonr(x, y)
+            sns.regplot(ax=ax, ci=0, x=x, y=y)
+
+            ax.set_ylabel('BBS_variation', fontsize=15)
+            ax.set_xlabel(f'RMS_variation', fontsize=15)
+            ax.set_title(f'{side}_{sensor}\nr={r: 0.2f}, p={p: 0.2f}', fontsize=15)
+
+    fig.suptitle(f'{mv}', fontweight="bold", fontsize=15)
 
 
 def pvalue_cut(pvalue):
