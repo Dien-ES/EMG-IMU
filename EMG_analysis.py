@@ -237,7 +237,7 @@ def boxplot(df_melt, mv, contr, ylim=None):
 
 
 def amplitude_barplot(df_melt, mv, ylim=None):
-    fig, axes = plt.subplots(4, 2, figsize=(12, 8),
+    fig, axes = plt.subplots(4, 2, figsize=(6, 12),
                              sharey=True,
                              constrained_layout=True)
 
@@ -271,7 +271,7 @@ def amplitude_barplot(df_melt, mv, ylim=None):
             ax.set_ylabel(f'{side}_{sensor}', fontsize=20)
             ax.set_xlabel('')
             ax.set_xticklabels(xticklabels)
-            ax.tick_params(labelsize=15)
+            ax.tick_params(labelsize=10)
             ax.legend([], [], frameon=False)
             fig.suptitle(f'{mv}', fontweight="bold", fontsize=20)
 
