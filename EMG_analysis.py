@@ -236,7 +236,7 @@ def boxplot(df_melt, mv, contr, ylim=None):
     fig.suptitle(f'{mv}', fontweight="bold", fontsize=20)
 
 
-def amplitude_barplot(df_melt, mv, ylim=None):
+def amplitude_barplot(df_melt, mv, ylim=1.0):
     fig, axes = plt.subplots(4, 2, figsize=(6, 12),
                              sharey=True,
                              constrained_layout=True)
@@ -263,7 +263,7 @@ def amplitude_barplot(df_melt, mv, ylim=None):
             sns.barplot(ax=ax,
                         data=data,
                         x='Times',
-                        y='Plus',
+                        y=data['Plus']/(data['Plus'] + data['Minus']),
                         hue='Group', palette='Set2')
 
             if ylim is not None:
