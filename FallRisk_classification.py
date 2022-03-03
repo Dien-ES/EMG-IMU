@@ -1,6 +1,6 @@
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.metrics import accuracy_score, f1_score, matthews_corrcoef,\
-    confusion_matrix, make_scorer
+    confusion_matrix, make_scorer,roc_curve, roc_auc_score
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import RFECV
 from sklearn.impute import KNNImputer
@@ -88,7 +88,7 @@ def train_test_dataset(mv_df, mv):
     return train_X, test_X, train_Y, test_Y
 
 
-def metric_result(test_Y, test_pred):
+def metric_result(test_Y, test_pred, test_prob, mv):
     TN, FP, FN, TP = confusion_matrix(test_Y, test_pred).ravel()
     acc = accuracy_score(test_Y, test_pred)
     f1 = f1_score(test_Y, test_pred)
@@ -97,7 +97,24 @@ def metric_result(test_Y, test_pred):
     spe = TN/(TN+FP)
     PPV = TP/(TP+FP)
     NPV = TN/(FN+TN)
-    return acc, f1, mtc, sen, spe, PPV, NPV
+    AUC = roc_auc_result(test_Y, test_prob, mv)
+    return acc, f1, mtc, sen, spe, PPV, NPV, AUC
+
+
+def roc_auc_result(test_Y, test_prob, mv):
+    fprs, tprs, thresholds = roc_curve(test_Y, test_prob[:, 1])
+    auc = roc_auc_score(test_Y, test_prob[:, 1])
+
+    plt.plot([0, 1], [0, 1])
+    plt.plot(fprs, tprs, label=f'AUC = {auc: 0.2f}')
+    plt.xlabel('FPR')
+    plt.ylabel('TPR')
+    plt.ylabel('TPR', fontsize=20)
+    plt.xlabel('FPR', fontsize=20)
+    plt.tick_params(labelsize=15)
+    plt.title(f'{mv}', size=20)
+    plt.legend(loc='lower right', fontsize=15)
+    return auc
 
 
 def feature_selection_RFECV(train_X, train_Y, k, min_features):
@@ -118,7 +135,8 @@ def feature_topk(rfecv, k):
 
 def RFECV_plot(rfecv, mv):
     cv_result_df = pd.DataFrame(rfecv.cv_results_)
-    cv_result_melt = cv_result_df.melt(value_vars=[f'split{i}_test_score' for i in range(5)],
+    cv_result_melt = cv_result_df.melt(value_vars=[f'split{i}_test_score'
+                                                   for i in range(5)],
                                        value_name='Score', var_name='CV')
     cv_result_melt['n_features'] = list(range(1, 25))*5
 
@@ -136,6 +154,70 @@ def RFECV_plot(rfecv, mv):
     plt.ylabel('Score (MCC)', fontsize=20)
     plt.xlabel('n_features', fontsize=20)
     plt.tick_params(labelsize=15)
-    plt.ylim(0.3,1)
+    plt.ylim(0, 1)
+    plt.xlim(1, 24)
     plt.title(f'{mv}', size=20)
     plt.show()
+
+
+def feature_importance(rfecv, mv, train_X, train_Y, test_X, test_Y):
+    topk = feature_topk(rfecv, k=1)
+    topk_train_X = train_X[topk]
+    topk_test_X = test_X[topk]
+
+    rf = RandomForestClassifier(n_estimators=100, oob_score=True,
+                                random_state=101)
+    rf.fit(topk_train_X, train_Y)
+
+    ft_importance_values = rf.feature_importances_
+    ft_series = pd.Series(ft_importance_values, index=topk_test_X.columns)
+    ft_series = ft_series.sort_values(ascending=False)
+
+    test_pred = rf.predict(topk_test_X)
+    test_prob = rf.predict_proba(topk_test_X)
+    results = metric_result(test_Y, test_pred, test_prob, mv)
+
+    return results, ft_series
+
+
+def feature_importance_plot(ft_series, mv):
+    plt.figure(figsize=(5, ft_series.shape[0]))
+    plt.title(f'{mv}', size=20)
+    sns.barplot(x=ft_series, y=ft_series.index)
+    plt.tick_params(labelsize=15)
+    plt.xlabel('feature_importance', fontsize=15)
+    plt.show()
+
+
+def movement_modeling_result(params, MV_list):
+    mv_df = data_helper(params, MV_list)
+
+    result_columns = ['MV', 'Acc', 'F', 'MTC', 'Sen',
+                      'Spe', 'PPV', 'NPV', 'AUC']
+    result_df = pd.DataFrame(columns=result_columns)
+
+    feature_list = ['RMS/R_TFL', 'RMS/R_QF', 'RMS/R_GC', 'RMS/R_TA',
+                    'RMS/L_TFL', 'RMS/L_QF', 'RMS/L_GC', 'RMS/L_TA',
+                    'MVC/R_TFL', 'MVC/R_QF', 'MVC/R_GC', 'MVC/R_TA',
+                    'MVC/L_TFL', 'MVC/L_QF', 'MVC/L_GC', 'MVC/L_TA',
+                    'subMVC/R_TFL', 'subMVC/R_QF', 'subMVC/R_GC', 'subMVC/R_TA',
+                    'subMVC/L_TFL', 'subMVC/L_QF', 'subMVC/L_GC', 'subMVC/L_TA']
+    fi_df = pd.DataFrame(columns=feature_list)
+    for mv in MV_list:
+        train_X, test_X, train_Y, test_Y = train_test_dataset(mv_df, mv)
+        rfecv = feature_selection_RFECV(train_X, train_Y, k=5, min_features=1)
+
+        results, ft_series = feature_importance(rfecv, mv,
+                                                train_X, train_Y,
+                                                test_X, test_Y)
+        RFECV_plot(rfecv, mv)
+        feature_importance_plot(ft_series, mv)
+
+        new_df = pd.DataFrame([mv] + list(results)).T
+        new_df.columns = result_columns
+        result_df = pd.concat([result_df, new_df], axis=0).\
+            reset_index(drop=True)
+        fi_df = pd.concat([fi_df, pd.DataFrame(ft_series).T], axis=0).\
+            reset_index(drop=True)
+
+    return result_df, fi_df
