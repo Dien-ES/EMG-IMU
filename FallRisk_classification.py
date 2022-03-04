@@ -1,10 +1,12 @@
 from sklearn.model_selection import train_test_split, StratifiedKFold
-from sklearn.metrics import accuracy_score, f1_score, matthews_corrcoef,\
-    confusion_matrix, make_scorer,roc_curve, roc_auc_score
+from sklearn.metrics import accuracy_score, f1_score, matthews_corrcoef, \
+    confusion_matrix, make_scorer, roc_curve, roc_auc_score
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import RFECV
 from sklearn.impute import KNNImputer
 from sklearn.preprocessing import Normalizer
+import re
+from sklearn.svm import SVC
 
 from EMG_analysis import *
 
@@ -33,19 +35,25 @@ def data_helper(params, mv_list, is_amp=False):
                                        rms + mvc + submvc +
                                        rms_amp + mvc_amp + submvc_amp).T
                     df2.columns = ['Group'] + \
-                          [f'RMS/{c}' for c in np.array(COLUMNS)[COL_IDX]] + \
-                          [f'MVC/{c}' for c in np.array(COLUMNS)[COL_IDX]] + \
-                          [f'subMVC/{c}' for c in np.array(COLUMNS)[COL_IDX]] + \
-                          amp_colnames('RMS') +\
-                          amp_colnames('MVC') +\
-                          amp_colnames('subMVC')
+                                  [f'RMS/{c}' for c in
+                                   np.array(COLUMNS)[COL_IDX]] + \
+                                  [f'MVC/{c}' for c in
+                                   np.array(COLUMNS)[COL_IDX]] + \
+                                  [f'subMVC/{c}' for c in
+                                   np.array(COLUMNS)[COL_IDX]] + \
+                                  amp_colnames('RMS') + \
+                                  amp_colnames('MVC') + \
+                                  amp_colnames('subMVC')
                 else:
                     df2 = pd.DataFrame(group +
                                        rms + mvc + submvc).T
                     df2.columns = ['Group'] + \
-                          [f'RMS/{c}' for c in np.array(COLUMNS)[COL_IDX]] + \
-                          [f'MVC/{c}' for c in np.array(COLUMNS)[COL_IDX]] + \
-                          [f'subMVC/{c}' for c in np.array(COLUMNS)[COL_IDX]]
+                                  [f'RMS/{c}' for c in
+                                   np.array(COLUMNS)[COL_IDX]] + \
+                                  [f'MVC/{c}' for c in
+                                   np.array(COLUMNS)[COL_IDX]] + \
+                                  [f'subMVC/{c}' for c in
+                                   np.array(COLUMNS)[COL_IDX]]
 
                 df1 = pd.concat([df1, df2])
 
@@ -63,15 +71,23 @@ def amp_colnames(param):
     return colnames
 
 
-def train_test_dataset(mv_df, mv):
+def train_test_dataset(mv_df, mv, sensor=None, is_MVC=None, test_size=0.25):
     df = mv_df[mv_df['Movement'] == mv].reset_index(drop=True)
     df = df.drop('Movement', axis=1)
 
     X = df.drop('Group', axis=1)
+    if sensor:
+        if is_MVC:
+            X = X.loc[:, [True if re.match(f'((RMS)|(MVC))/{sensor}', col)
+                          else False for col in X.columns]]
+        else:
+            X = X.loc[:, [True if re.match(f'((RMS)|(subMVC))/{sensor}', col)
+                          else False for col in X.columns]]
+
     Y = df['Group'].astype(int).values
 
     train_X, test_X, train_Y, test_Y = train_test_split(X, Y,
-                                                        test_size=0.25,
+                                                        test_size=test_size,
                                                         stratify=Y,
                                                         random_state=101)
     feature_names = train_X.columns
@@ -88,23 +104,28 @@ def train_test_dataset(mv_df, mv):
     return train_X, test_X, train_Y, test_Y
 
 
-def metric_result(test_Y, test_pred, test_prob, mv):
+def metric_result(test_Y, test_pred, test_prob, mv=None):
     TN, FP, FN, TP = confusion_matrix(test_Y, test_pred).ravel()
     acc = accuracy_score(test_Y, test_pred)
     f1 = f1_score(test_Y, test_pred)
     mtc = matthews_corrcoef(test_Y, test_pred)
-    sen = TP/(TP+FN)
-    spe = TN/(TN+FP)
-    PPV = TP/(TP+FP)
-    NPV = TN/(FN+TN)
-    AUC = roc_auc_result(test_Y, test_prob, mv)
-    return acc, f1, mtc, sen, spe, PPV, NPV, AUC
+    sen = TP / (TP + FN)
+    spe = TN / (TN + FP)
+    PPV = TP / (TP + FP)
+    NPV = TN / (FN + TN)
+    if mv:
+        AUC = roc_auc_result(test_Y, test_prob, mv)
+    else:
+        AUC = roc_auc_score(test_Y, test_prob[:, 1])
+
+    return acc, f1, mtc, sen, spe, PPV, NPV, AUC, test_Y.shape[0]
 
 
 def roc_auc_result(test_Y, test_prob, mv):
     fprs, tprs, thresholds = roc_curve(test_Y, test_prob[:, 1])
     auc = roc_auc_score(test_Y, test_prob[:, 1])
 
+    plt.figure(figsize=(6, 6))
     plt.plot([0, 1], [0, 1])
     plt.plot(fprs, tprs, label=f'AUC = {auc: 0.2f}')
     plt.xlabel('FPR')
@@ -138,7 +159,7 @@ def RFECV_plot(rfecv, mv):
     cv_result_melt = cv_result_df.melt(value_vars=[f'split{i}_test_score'
                                                    for i in range(5)],
                                        value_name='Score', var_name='CV')
-    cv_result_melt['n_features'] = list(range(1, 25))*5
+    cv_result_melt['n_features'] = list(range(1, 25)) * 5
 
     n_features = rfecv.n_features_
     score = cv_result_df['mean_test_score'].max()
@@ -149,7 +170,7 @@ def RFECV_plot(rfecv, mv):
                  x='n_features',
                  y='Score')
     plt.vlines(x=n_features, ymin=0, ymax=1, ls='--', colors='red',
-               label=f'n_features = {n_features}\nScore = {score: 0.2f}')
+               label=f'n_features = {n_features}\nMCC = {score: 0.2f}')
     plt.legend(loc='lower left', fontsize=15)
     plt.ylabel('Score (MCC)', fontsize=20)
     plt.xlabel('n_features', fontsize=20)
@@ -181,10 +202,11 @@ def feature_importance(rfecv, mv, train_X, train_Y, test_X, test_Y):
 
 
 def feature_importance_plot(ft_series, mv):
-    plt.figure(figsize=(5, ft_series.shape[0]))
+    plt.figure(figsize=(ft_series.shape[0], 5))
     plt.title(f'{mv}', size=20)
-    sns.barplot(x=ft_series, y=ft_series.index)
-    plt.tick_params(labelsize=15)
+    sns.barplot(x=ft_series.index, y=ft_series)
+    plt.tick_params(labelsize=12)
+    plt.xticks(rotation=45)
     plt.xlabel('feature_importance', fontsize=15)
     plt.show()
 
@@ -192,8 +214,8 @@ def feature_importance_plot(ft_series, mv):
 def movement_modeling_result(params, MV_list):
     mv_df = data_helper(params, MV_list)
 
-    result_columns = ['MV', 'Acc', 'F', 'MTC', 'Sen',
-                      'Spe', 'PPV', 'NPV', 'AUC']
+    result_columns = ['MV', 'Acc', 'F', 'MCC', 'Sen',
+                      'Spe', 'PPV', 'NPV', 'AUC', 'No. test']
     result_df = pd.DataFrame(columns=result_columns)
 
     feature_list = ['RMS/R_TFL', 'RMS/R_QF', 'RMS/R_GC', 'RMS/R_TA',
@@ -215,9 +237,53 @@ def movement_modeling_result(params, MV_list):
 
         new_df = pd.DataFrame([mv] + list(results)).T
         new_df.columns = result_columns
-        result_df = pd.concat([result_df, new_df], axis=0).\
+        result_df = pd.concat([result_df, new_df], axis=0). \
             reset_index(drop=True)
-        fi_df = pd.concat([fi_df, pd.DataFrame(ft_series).T], axis=0).\
+        fi_df = pd.concat([fi_df, pd.DataFrame(ft_series).T], axis=0). \
             reset_index(drop=True)
 
     return result_df, fi_df
+
+
+def rf_result(train_X, train_Y, test_X, test_Y):
+    rf = RandomForestClassifier(n_estimators=100, oob_score=True,
+                                random_state=101)
+    rf.fit(train_X, train_Y)
+
+    test_pred = rf.predict(test_X)
+    test_prob = rf.predict_proba(test_X)
+    results = metric_result(test_Y, test_pred, test_prob)
+    return results
+
+
+def sensor_comparison_result(params, MV_list, is_MVC, title):
+    mv_df = data_helper(params, MV_list)
+    result_columns = ['MV', 'Sensor', 'Acc', 'F', 'MCC', 'Sen',
+                      'Spe', 'PPV', 'NPV', 'AUC']
+    result_df = pd.DataFrame(columns=result_columns)
+    for mv in tqdm(MV_list):
+        for sensor in ['R_TFL', 'R_QF', 'R_GC', 'R_TA', 'L_TFL', 'L_QF', 'L_GC',
+                       'L_TA']:
+            train_X, test_X, train_Y, test_Y = train_test_dataset(mv_df, mv,
+                                                                  sensor,
+                                                                  is_MVC=is_MVC)
+            results = rf_result(train_X, train_Y, test_X, test_Y)
+            new_df = pd.DataFrame([mv, sensor] + list(results)[:-1]).T
+            new_df.columns = result_columns
+            result_df = pd.concat([result_df, new_df], axis=0). \
+                reset_index(drop=True)
+
+    result_df_melt = result_df.melt(id_vars=['Sensor', 'MV'],
+                                    var_name='Metric', value_name='Score')
+
+    plt.figure(figsize=(10, 6))
+    sns.pointplot(data=result_df_melt,
+                  x='Sensor',
+                  y='Score',
+                  hue='Metric')
+    plt.tick_params(labelsize=15)
+    plt.legend(fontsize=15, bbox_to_anchor=(1.05, 1))
+    plt.ylabel('Score', fontsize=20)
+    plt.xlabel('Sensor', fontsize=20)
+    plt.title(title, size=20)
+    return result_df
