@@ -262,8 +262,8 @@ def sensor_comparison_result(params, MV_list, is_MVC, title):
                       'Spe', 'PPV', 'NPV', 'AUC']
     result_df = pd.DataFrame(columns=result_columns)
     for mv in tqdm(MV_list):
-        for sensor in ['R_TFL', 'R_QF', 'R_GC', 'R_TA', 'L_TFL', 'L_QF', 'L_GC',
-                       'L_TA']:
+        for sensor in ['R_TFL', 'R_QF', 'R_GC', 'R_TA',
+                       'L_TFL', 'L_QF', 'L_GC', 'L_TA']:
             train_X, test_X, train_Y, test_Y = train_test_dataset(mv_df, mv,
                                                                   sensor,
                                                                   is_MVC=is_MVC)
