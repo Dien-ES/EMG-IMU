@@ -63,6 +63,40 @@ def data_helper(params, mv_list, is_amp=False):
     return total_df.reset_index(drop=True)
 
 
+def rms_data_helper(params, mv_list):
+    total_df = pd.DataFrame()
+    for mv in mv_list:
+        df1 = pd.DataFrame()
+        for param in params:
+            if param.info['motion'] == mv:
+                rms = list(np.nanmax(param.rms.data[:, COL_IDX], axis=0))
+                df2 = pd.DataFrame([param.info['group']] +\
+                                   [param.info['sid']] +\
+                                   [param.info['BBS']] +\
+                                   [param.info['day']] +\
+                                   [param.info['motion']] +\
+                                   rms).T
+                df2.columns = ['Group', 'Subject_ID', 'BBS', 'Day', 'Movement'] +\
+                              list(np.array(COLUMNS)[COL_IDX])
+                df1 = pd.concat([df1, df2])
+        total_df = pd.concat([total_df, df1])
+
+    total_df = total_df.reset_index(drop=True)
+    total_df = columns_astype(total_df)
+    return total_df
+
+
+def columns_astype(df):
+    df['Group'] = df['Group'].astype(str)
+    df['Subject_ID'] = df['Subject_ID'].astype(int)
+    df['BBS'] = df['BBS'].astype(int)
+    df['Day'] = df['Day'].astype(int)
+    df['Movement'] = df['Movement'].astype(str)
+    for col in list(np.array(COLUMNS)[COL_IDX]):
+        df[col] = df[col].astype(float)
+    return df
+
+
 def amp_colnames(param):
     colnames = []
     for i in [1.2, 1.4, 1.6, 1.8, 2.0, 3.0, 4.0, 5.0]:
