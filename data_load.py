@@ -114,6 +114,10 @@ class DataLoader:
             columns = emg.columns
             a_emg = pd.concat([emg.iloc[:, 6:], emg.iloc[:, :6]], axis=1)
             a_emg.columns = columns
+            if self.motion[0] == 'l':
+                self.motion = f'r{self.motion[1:]}'
+            if self.motion[0] == 'r':
+                self.motion = f'l{self.motion[1:]}'
             return a_emg
         return emg
 
@@ -134,5 +138,9 @@ class DataLoader:
             columns = imu.columns
             a_imu = pd.concat([imu.iloc[:, 36:], imu.iloc[:, :36]], axis=1)
             a_imu.columns = columns
+            if self.motion[0] == 'l':
+                self.motion = f'r{self.motion[1:]}'
+            if self.motion[0] == 'r':
+                self.motion = f'l{self.motion[1:]}'
             return a_imu
         return imu
