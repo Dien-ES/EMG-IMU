@@ -31,12 +31,16 @@ def specific_sensor_plot(data, set_onset=None):
     plt.show()
 
     if set_onset:
-        trial = int(input())
+        trial = int(input('trial count:'))
         onset = []
-        for _ in range(trial):
-            start, end = map(int, input().split())
-            onset.append((start, end))
-
+        cnt = 0
+        while cnt < trial:
+            try:
+                start, end = map(int, input('onset:').split())
+                onset.append((start, end))
+                cnt += 1
+            except:
+                pass
         return onset
 
 
@@ -67,10 +71,10 @@ def set_onset_info():
             print(f'subject load complete.')
 
             for days in subject.days:
-                for signals in days.indivs:
+                for indiv in days.indivs:
                     onset_id += 1
                     if onset_id not in onset_info['OnsetID']:
-                        data = signals[0]
+                        data = indiv.signals[0]
                         onset = specific_sensor_plot(data, set_onset=True)
 
                         onset_info['OnsetID'] += [onset_id]
