@@ -5,7 +5,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
-import pickle
+import json
+
 sns.set_style("whitegrid")
 
 from data_load import *
@@ -19,7 +20,8 @@ def specific_sensor_plot(data, set_onset=None):
     signal = data.emg.raw
     side, motion, power = data.motion.split('_')
     col = COLILOC[side][motion]
-    _, ax = plt.subplots(1, 1, figsize=(18, 6))
+    max_time = int(signal.xrange[-1] + 1)
+    _, ax = plt.subplots(1, 1, figsize=(5*max_time//10, 5))
     ax.set_title(data.motion, fontsize=20)
     ax.tick_params(labelsize=15)
     ax.set_ylabel('Amplitude [mV]', fontsize=20)
@@ -27,62 +29,81 @@ def specific_sensor_plot(data, set_onset=None):
     sns.lineplot(ax=ax,
                  x=signal.xrange[:signal.data.shape[0]],
                  y=signal.data[:, col])
-    plt.xticks(range(int(signal.xrange[-1] + 2)))
+    plt.xticks(range(max_time))
     plt.show()
 
     if set_onset:
-        trial = int(input('trial count:'))
+        while True:
+            trial = input('----------trial count:')
+            if trial == 'exit':
+                raise RuntimeError('onset quit.')
+            else:
+                try:
+                    trial = int(trial)
+                    break
+                except:
+                    pass
+
         onset = []
         cnt = 0
         while cnt < trial:
-            try:
-                start, end = map(int, input('onset:').split())
-                onset.append((start, end))
-                cnt += 1
-            except:
-                pass
+            start = input(f'onset {cnt} start:')
+            end = input(f'onset {cnt} end:')
+            if (start == 'exit') or (end == 'exit'):
+                raise RuntimeError('onset quit.')
+            else:
+                try:
+                    onset.append((int(start), int(end)))
+                    cnt += 1
+                except:
+                    pass
         return onset
 
 
-def set_onset_info():
+def set_onset_info(group):
     try:
-        with open('../onset_info.pkl', 'rb') as f:
-            onset_info = pickle.load(f)
+        with open(f'../onset_info_{group}.json', 'r') as f:
+            onset_info = json.load(f)
     except:
-        onset_info = {'OnsetID': [], 'Group': [], 'Sid': [], 'Day': [], 'Motion': [],
-                      'Onset': []}
-        with open('../onset_info.pkl', 'wb') as f:
-            pickle.dump(onset_info, f)
+        onset_info = {}
+        with open(f'../onset_info_{group}.json', 'w') as f:
+            json.dump(onset_info, f)
 
-    onset_id = -1
-    for group in ['Healthy', 'Disabed']:
-        if group == 'Healthy':
-            end_sid = 20
-            sid_list = range(1, end_sid + 1)
+    if group == 'Healthy':
+        end_sid = 20
+        sid_list = range(1, end_sid + 1)
+    else:
+        end_sid = 22
+        sid_list = list(range(1, end_sid + 1))
+        sid_list.remove(13)
+        sid_list.remove(17)
+    if group not in onset_info.keys():
+        onset_info[group] = {}
+
+    for sid in sid_list:
+        print(f'---------------------{group} {sid}---------------------')
+        if f'sid_{sid}' not in onset_info[group].keys():
+            onset_info[group][f'sid_{sid}'] = {'n_onset': 0}
+
+        path_list = glob.glob(os.path.join(DATA_PATH, group,
+                                           f'R{sid:03}_*',
+                                           f'indiv_*', '*.csv'))
+        if onset_info[group][f'sid_{sid}']['n_onset'] == len(path_list):
+            print('already onset exist.')
+            continue
         else:
-            end_sid = 22
-            sid_list = list(range(1, end_sid + 1))
-            sid_list.remove(13)
-            sid_list.remove(17)
-
-        for sid in sid_list:
-            print(f'---------------------{group} {sid}---------------------')
             subject = Subject(group, sid)
             print(f'subject load complete.')
 
-            for days in subject.days:
-                for indiv in days.indivs:
-                    onset_id += 1
-                    if onset_id not in onset_info['OnsetID']:
-                        data = indiv.signals[0]
-                        onset = specific_sensor_plot(data, set_onset=True)
+        for day in subject.days:
+            for indiv in day.indivs:
+                data = indiv.signals[0]
+                if f'day_{data.day}' not in onset_info[group][f'sid_{sid}'].keys():
+                    onset_info[group][f'sid_{sid}'][f'day_{data.day}'] = {}
+                if data.motion not in onset_info[data.group][f'sid_{sid}'][f'day_{data.day}'].keys():
+                    onset = specific_sensor_plot(data, set_onset=True)
 
-                        onset_info['OnsetID'] += [onset_id]
-                        onset_info['Group'] += [data.group]
-                        onset_info['Sid'] += [data.sid]
-                        onset_info['Day'] += [data.day]
-                        onset_info['Motion'] += [data.motion]
-                        onset_info['Onset'] += [onset]
-
-                        with open('../onset_info.pkl', 'wb') as f:
-                            pickle.dump(onset_info, f)
+                    onset_info[group][f'sid_{sid}']['n_onset'] += 1
+                    onset_info[data.group][f'sid_{sid}'][f'day_{data.day}'][data.motion] = onset
+                    with open(f'../onset_info_{group}.json', 'w') as f:
+                        json.dump(onset_info, f)

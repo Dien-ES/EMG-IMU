@@ -64,7 +64,6 @@ class Day:
 
 class Movement:
     def __init__(self, *info):
-        self.motion = info[4]
         self.signals = self.load(*info)
 
     def load(self, *info):
@@ -116,7 +115,7 @@ class DataLoader:
             a_emg.columns = columns
             if self.motion[0] == 'l':
                 self.motion = f'r{self.motion[1:]}'
-            if self.motion[0] == 'r':
+            else:
                 self.motion = f'l{self.motion[1:]}'
             return a_emg
         return emg
@@ -140,7 +139,7 @@ class DataLoader:
             a_imu.columns = columns
             if self.motion[0] == 'l':
                 self.motion = f'r{self.motion[1:]}'
-            if self.motion[0] == 'r':
+            else:
                 self.motion = f'l{self.motion[1:]}'
             return a_imu
         return imu
