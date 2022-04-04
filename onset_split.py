@@ -6,14 +6,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
 import json
+from data_load import *
 
 sns.set_style("whitegrid")
 
-from data_load import *
-
 DATA_PATH = '../../../../Database/EMG_IMU'
-COLILOC = {'r':{'habd':2, 'ke':3, 'apf':4, 'adf':5},
-           'l':{'habd':8, 'ke':9, 'apf':10, 'adf':11}}
+COLILOC = {'r': {'habd': 2, 'ke': 3, 'apf': 4, 'adf': 5},
+           'l': {'habd': 8, 'ke': 9, 'apf': 10, 'adf': 11}}
 
 
 def specific_sensor_plot(data, set_onset=None):
@@ -21,7 +20,7 @@ def specific_sensor_plot(data, set_onset=None):
     side, motion, power = data.motion.split('_')
     col = COLILOC[side][motion]
     max_time = int(signal.xrange[-1] + 1)
-    _, ax = plt.subplots(1, 1, figsize=(5*max_time//10, 5))
+    _, ax = plt.subplots(1, 1, figsize=(5 * max_time // 10, 5))
     ax.set_title(data.motion, fontsize=20)
     ax.tick_params(labelsize=15)
     ax.set_ylabel('Amplitude [mV]', fontsize=20)
@@ -62,11 +61,11 @@ def specific_sensor_plot(data, set_onset=None):
 
 def set_onset_info(group):
     try:
-        with open(f'../onset_info_{group}.json', 'r') as f:
+        with open(f'../parameter/onset/onset_info_{group}.json', 'r') as f:
             onset_info = json.load(f)
     except:
         onset_info = {}
-        with open(f'../onset_info_{group}.json', 'w') as f:
+        with open(f'../parameter/onset/onset_info_{group}.json', 'w') as f:
             json.dump(onset_info, f)
 
     if group == 'Healthy':
@@ -98,12 +97,15 @@ def set_onset_info(group):
         for day in subject.days:
             for indiv in day.indivs:
                 data = indiv.signals[0]
-                if f'day_{data.day}' not in onset_info[group][f'sid_{sid}'].keys():
+                if f'day_{data.day}' not in onset_info[group][
+                    f'sid_{sid}'].keys():
                     onset_info[group][f'sid_{sid}'][f'day_{data.day}'] = {}
-                if data.motion not in onset_info[data.group][f'sid_{sid}'][f'day_{data.day}'].keys():
+                if data.motion not in onset_info[data.group][f'sid_{sid}'][
+                    f'day_{data.day}'].keys():
                     onset = specific_sensor_plot(data, set_onset=True)
 
                     onset_info[group][f'sid_{sid}']['n_onset'] += 1
-                    onset_info[data.group][f'sid_{sid}'][f'day_{data.day}'][data.motion] = onset
-                    with open(f'../onset_info_{group}.json', 'w') as f:
+                    onset_info[data.group][f'sid_{sid}'][f'day_{data.day}'][
+                        data.motion] = onset
+                    with open(f'../parameter/onset/onset_info_{group}.json', 'w') as f:
                         json.dump(onset_info, f)

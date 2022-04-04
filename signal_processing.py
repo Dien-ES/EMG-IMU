@@ -9,6 +9,7 @@ sns.set_style("whitegrid")
 SENSORS = ['TP', 'LD', 'TFL', 'QF', 'GC', 'TA']
 COLUMNS = [f'R_{s}'for s in SENSORS] + [f'L_{s}'for s in SENSORS]
 
+
 class Signal:
     def __init__(self, data, xrange, name, fs=1259):
         self.data = data

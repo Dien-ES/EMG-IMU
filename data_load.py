@@ -86,17 +86,25 @@ class DataLoader:
         self.sid = sid
         self.day = day
         self.motion = motion
-
-        emg, imu = self.data_load(group, sid)
+        emg, imu = self.data_load(group, sid, motion)
         self.emg = EMG(emg)
         self.imu = IMU(imu)
 
-    def data_load(self, group, sid):
+    def data_load(self, group, sid, motion):
         data = pd.read_csv(self.file_path)
         if group == 'Disabled':
             af_side = D_INFO.query(f'Sid=={sid}')['AffectedSide'].values[0]
         else:
             af_side = 'None'
+
+        if af_side == 'Left':
+            if motion[0] == 'l':
+                self.motion = f'r{motion[1:]}'
+            elif motion[0] == 'r':
+                self.motion = f'l{motion[1:]}'
+        else:
+            self.motion = motion
+
         emg = self.emg_data(data, group, af_side)
         imu = self.imu_data(data, group, af_side)
         return emg, imu
@@ -113,10 +121,6 @@ class DataLoader:
             columns = emg.columns
             a_emg = pd.concat([emg.iloc[:, 6:], emg.iloc[:, :6]], axis=1)
             a_emg.columns = columns
-            if self.motion[0] == 'l':
-                self.motion = f'r{self.motion[1:]}'
-            else:
-                self.motion = f'l{self.motion[1:]}'
             return a_emg
         return emg
 
@@ -137,9 +141,5 @@ class DataLoader:
             columns = imu.columns
             a_imu = pd.concat([imu.iloc[:, 36:], imu.iloc[:, :36]], axis=1)
             a_imu.columns = columns
-            if self.motion[0] == 'l':
-                self.motion = f'r{self.motion[1:]}'
-            else:
-                self.motion = f'l{self.motion[1:]}'
             return a_imu
         return imu
