@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
 import json
+import pickle
 from data_load import *
 
 sns.set_style("whitegrid")
@@ -109,3 +110,88 @@ def set_onset_info(group):
                         data.motion] = onset
                     with open(f'../parameter/onset/onset_info_{group}.json', 'w') as f:
                         json.dump(onset_info, f)
+
+
+def set_onset_dataset(group):
+    with open(f'../parameter/onset/onset_info_{group}.json', 'r') as f:
+        onset_info = json.load(f)
+
+    onset_dataset = {}
+    for sid in tqdm(onset_info[group].keys()):
+        subject = Subject(group, sid)
+        onset_subjects = {}
+        for day in onset_info[group][sid].keys():
+            if day != 'n_onset':
+                if day not in onset_subjects.keys():
+                    onset_subjects[day] = {}
+                    bbs = subject.days[day].BBS
+                    onset_subjects[day]['BBS'] = int(bbs)
+                for motion in onset_info[group][sid][day].keys():
+                    if motion not in onset_subjects[day].keys():
+                        onset_subjects[day][motion] = []
+
+                    emg = subject.days[day].indivs[motion][0].emg.raw
+                    for start, end in onset_info[group][sid][day][motion]:
+                        bool_idx = (emg.xrange > start) & (emg.xrange < end)
+                        data = EMG(emg.data[bool_idx, :], preprocessing=True)
+                        # onset_subjects[day][motion] += [data]
+                        s, m, _ = motion.split('_')
+                        col = COLILOC[s][m]
+                        onset_subjects[day][motion] += [
+                            np.nanmax(data.rms.data, axis=0)[col]]
+
+        onset_dataset[sid] = onset_subjects
+
+    with open(f'../parameter/onset/{group}_onset_dataset.json', 'w') as f:
+        json.dump(onset_dataset, f)
+
+
+def set_onset_parameter(group):
+    with open(f'../parameter/onset/{group}_onset_dataset.json', 'r') as f:
+        onset_dataset = json.load(f)
+
+    parameter = {}
+    for sid in onset_dataset.keys():
+        if sid not in parameter.keys():
+            parameter[sid] = {}
+        for day in onset_dataset[sid].keys():
+            if day not in parameter[sid].keys():
+                parameter[sid][day] = {}
+                parameter[sid][day]['BBS'] = onset_dataset[sid][day]['BBS']
+
+            for sensor, motion in [('TFL', 'habd'), ('QF', 'ke'), ('GC', 'apf'),
+                                   ('TA', 'adf')]:
+                if sensor not in parameter[sid][day].keys():
+                    parameter[sid][day][sensor] = {}
+
+                try:
+                    rms_max = np.array(
+                        onset_dataset[sid][day][f'r_{motion}_max'])
+                except:
+                    rms_max = None
+
+                try:
+                    mvc = rms_max / np.mean(
+                        onset_dataset[sid][day][f'l_{motion}_max'])
+                except:
+                    mvc = None
+
+                try:
+                    rms_min = np.array(
+                        onset_dataset[sid][day][f'r_{motion}_min'])
+                except:
+                    rms_min = None
+
+                try:
+                    submvc = rms_min / np.mean(
+                        onset_dataset[sid][day][f'l_{motion}_min'])
+                except:
+                    submvc = None
+
+                parameter[sid][day][sensor]['RMS_max'] = rms_max
+                parameter[sid][day][sensor]['RMS_min'] = rms_min
+                parameter[sid][day][sensor]['MVC'] = mvc
+                parameter[sid][day][sensor]['subMVC'] = submvc
+
+    with open(f'../parameter/onset/{group}_onset_parameter.pkl', 'wb') as f:
+        pickle.dump(parameter, f)

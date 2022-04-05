@@ -49,29 +49,36 @@ class Signal:
 
 
 class EMG:
-    def __init__(self, data, fs=1259):
+    def __init__(self, data, preprocessing=None, fs=1259):
         self.columns = COLUMNS
-        xrange = np.arange(0, len(data) * 1 / 1259, 1 / 1259)
+        xrange = np.arange(0, len(data), 1) / 1259
 
         proc_data = Processing(np.array(data), fs)
         self.raw = Signal(proc_data.data, xrange, 'Raw', fs)
 
-        proc_data.normalization()
-        self.norm = Signal(proc_data.data,
-                           xrange, 'Normalization', fs)
+        if preprocessing:
+            proc_data.normalization()
+            self.norm = Signal(proc_data.data,
+                               xrange, 'Normalization', fs)
 
-        proc_data.filter(method='nk_clean')
-        self.filtering = Signal(proc_data.data,
-                                xrange, f'Filter', fs)
+            try:
+                proc_data.filter(method='despike')
+            except:
+                pass
+            self.filtering = Signal(proc_data.data,
+                                    xrange, f'Filter', fs)
 
-        proc_data.rectification()
-        self.rect = Signal(proc_data.data,
-                           xrange, 'Rectification', fs)
+            proc_data.rectification()
+            self.rect = Signal(proc_data.data,
+                               xrange, 'Rectification', fs)
 
-        proc_data.filter(method='despike')
-        proc_data.rms()
-        self.rms = Signal(proc_data.data,
-                          xrange * int(fs * 0.25), f'RMS', fs)
+#             try:
+#                 proc_data.filter(method='despike')
+#             except:
+#                 pass
+            proc_data.rms()
+            self.rms = Signal(proc_data.data,
+                              xrange * int(fs * 0.25), f'RMS', fs)
 
     def prep_comparison_plot(self):
         fig, axes = plt.subplots(2, 6, figsize=(30, 10),
@@ -86,7 +93,7 @@ class EMG:
 
 
 class IMU:
-    def __init__(self, data, fs=148):
+    def __init__(self, data, preprocessing=None, fs=148):
         self.data = data
         self.fs = fs
 

@@ -20,18 +20,18 @@ D_INFO = pd.read_csv(os.path.join(DATA_PATH, 'Disabled_info.csv'))
 class Subject:
     def __init__(self, group, sid):
         self.group = group
-        self.sid = sid
+        self.sid = int(sid.split('_')[-1])
         self.af_side = None
         if group == 'Disabled':
-            self.af_side = D_INFO.query(f'Sid=={sid}')['AffectedSide'].values[0]
-        self.days = self.load(group, sid)
+            self.af_side = D_INFO.query(f'Sid=={self.sid}')['AffectedSide'].values[0]
+        self.days = self.load(group, self.sid, self.af_side)
 
-    def load(self, group, sid):
-        days = []
-        for day in [1, 2]:
-            d = Day(group, sid, day)
+    def load(self, group, sid, af_side):
+        days = {}
+        for day in ['day_1', 'day_2']:
+            d = Day(group, sid, day, af_side)
             if (d.funcs is not None) | (d.indivs is not None):
-                days += [d]
+                days[day] = d
 
         if len(days) > 0:
             return days
@@ -40,73 +40,64 @@ class Subject:
 
 
 class Day:
-    def __init__(self, group, sid, day):
+    def __init__(self, group, sid, day, af_side):
         self.BBS = 60
+        self.af_side = af_side
+        self.day = int(day.split('_')[-1])
         if group == 'Disabled':
-            self.BBS = D_INFO.query(f'Sid=={sid}')[f'BBS_{day}'].values[0]
+            self.BBS = D_INFO.query(f'Sid=={sid}')[f'BBS_{self.day}'].values[0]
 
-        self.day = day
-        self.funcs = self.load(group, sid, 'func_mov', FUNC_MV, day)
-        self.indivs = self.load(group, sid, 'indiv_mov', INDIV_MV, day)
+        self.funcs = self.load(group, sid, 'func_mov', FUNC_MV, self.day, af_side)
+        self.indivs = self.load(group, sid, 'indiv_mov', INDIV_MV, self.day, af_side)
 
-    def load(self, group, sid, movement, MV, day):
-        moves = []
+    def load(self, group, sid, movement, MV, day, af_side):
+        moves = {}
         for motion in MV:
-            move = Movement(group, sid, movement, day, motion)
-            if move.signals is not None:
-                moves += [move]
+            move = self.movement(group, sid, movement, day, motion, af_side)
+            # affected_side switching
+            if move is not None:
+                if af_side == 'Left':
+                    if motion[0] == 'l':
+                        motion = f'r{motion[1:]}'
+                    elif motion[0] == 'r':
+                        motion = f'l{motion[1:]}'
+
+                moves[motion] = move
 
         if len(moves) > 0:
             return moves
         else:
             return None
 
-
-class Movement:
-    def __init__(self, *info):
-        self.signals = self.load(*info)
-
-    def load(self, *info):
+    def movement(self, *info):
         path_list = sorted(glob.glob(os.path.join(DATA_PATH,
                                                   info[0],
                                                   f'R{info[1]:03}_*',
                                                   f'{info[2]}_{info[3]}',
                                                   f'{info[4]}*.csv')))
         if len(path_list) > 0:
-            return [DataLoader(path, info[0], info[1], info[3], info[4])
+            return [DataLoader(path, info[0], info[1], info[3], info[4], info[5])
                     for path in path_list]
         else:
             return None
 
 
 class DataLoader:
-    def __init__(self, file_path, group, sid, day, motion):
+    def __init__(self, file_path, group, sid, day, motion, af_side):
         self.file_path = file_path
         self.group = group
         self.sid = sid
         self.day = day
         self.motion = motion
-        emg, imu = self.data_load(group, sid, motion)
+        self.af_side = af_side
+        emg, imu = self.data_load(group)
         self.emg = EMG(emg)
         self.imu = IMU(imu)
 
-    def data_load(self, group, sid, motion):
+    def data_load(self, group):
         data = pd.read_csv(self.file_path)
-        if group == 'Disabled':
-            af_side = D_INFO.query(f'Sid=={sid}')['AffectedSide'].values[0]
-        else:
-            af_side = 'None'
-
-        if af_side == 'Left':
-            if motion[0] == 'l':
-                self.motion = f'r{motion[1:]}'
-            elif motion[0] == 'r':
-                self.motion = f'l{motion[1:]}'
-        else:
-            self.motion = motion
-
-        emg = self.emg_data(data, group, af_side)
-        imu = self.imu_data(data, group, af_side)
+        emg = self.emg_data(data, group, self.af_side)
+        imu = self.imu_data(data, group, self.af_side)
         return emg, imu
 
     def emg_data(self, data, group, af_side):
