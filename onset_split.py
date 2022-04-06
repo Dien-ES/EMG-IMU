@@ -92,22 +92,19 @@ def set_onset_info(group):
             print('already onset exist.')
             continue
         else:
-            subject = Subject(group, sid)
+            subject = Subject(group, f'sid_{sid}')
             print(f'subject load complete.')
 
-        for day in subject.days:
-            for indiv in day.indivs:
-                data = indiv.signals[0]
-                if f'day_{data.day}' not in onset_info[group][
-                    f'sid_{sid}'].keys():
-                    onset_info[group][f'sid_{sid}'][f'day_{data.day}'] = {}
-                if data.motion not in onset_info[data.group][f'sid_{sid}'][
-                    f'day_{data.day}'].keys():
+        for day in subject.days.keys():
+            for motion in subject.days[day].indivs.keys():
+                if day not in onset_info[group][f'sid_{sid}'].keys():
+                    onset_info[group][f'sid_{sid}'][day] = {}
+                if motion not in onset_info[group][f'sid_{sid}'][day].keys():
+                    data = subject.days[day].indivs[motion][0]
                     onset = specific_sensor_plot(data, set_onset=True)
 
                     onset_info[group][f'sid_{sid}']['n_onset'] += 1
-                    onset_info[data.group][f'sid_{sid}'][f'day_{data.day}'][
-                        data.motion] = onset
+                    onset_info[group][f'sid_{sid}'][day][motion] = onset
                     with open(f'../parameter/onset/onset_info_{group}.json', 'w') as f:
                         json.dump(onset_info, f)
 
