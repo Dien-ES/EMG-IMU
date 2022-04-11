@@ -20,14 +20,14 @@ test_sj = ['Healthy_4', 'Healthy_8', 'Healthy_12', 'Healthy_16', 'Healthy_20',
            'Disabled_1',
            'Disabled_5', 'Disabled_9', 'Disabled_15', 'Disabled_20']
 
-VAL0_SJ = ['Healthy_1', 'Healthy_2', 'Healthy_3', 'Disabled_4', 'Disabled_14']
-VAL1_SJ = ['Healthy_5', 'Healthy_6', 'Disabled_2', 'Disabled_6', 'Disabled_7']
-VAL2_SJ = ['Healthy_7', 'Healthy_9', 'Healthy_10', 'Disabled_10', 'Disabled_16']
-VAL3_SJ = ['Healthy_11', 'Healthy_13', 'Disabled_8', 'Disabled_3',
+VAL0_SJ = ['Healthy_1', 'Healthy_5', 'Healthy_10', 'Disabled_4', 'Disabled_14']
+VAL1_SJ = ['Healthy_15', 'Healthy_19', 'Disabled_2', 'Disabled_6', 'Disabled_7']
+VAL2_SJ = ['Healthy_6', 'Healthy_7', 'Healthy_11', 'Disabled_10', 'Disabled_16']
+VAL3_SJ = ['Healthy_14', 'Healthy_17', 'Disabled_8', 'Disabled_3',
            'Disabled_12']
-VAL4_SJ = ['Healthy_14', 'Healthy_15', 'Healthy_17', 'Disabled_11',
+VAL4_SJ = ['Healthy_2', 'Healthy_3', 'Healthy_9', 'Disabled_11',
            'Disabled_18']
-VAL5_SJ = ['Healthy_18', 'Healthy_19', 'Disabled_19', 'Disabled_21',
+VAL5_SJ = ['Healthy_13', 'Healthy_18', 'Disabled_19', 'Disabled_21',
            'Disabled_22']
 # VALS_SJ = [VAL0_SJ, VAL1_SJ, VAL2_SJ, VAL3_SJ, VAL4_SJ, VAL5_SJ]
 VALS_SJ = [VAL0_SJ + VAL1_SJ, VAL2_SJ + VAL3_SJ, VAL4_SJ + VAL5_SJ]
@@ -65,7 +65,6 @@ def data_helper(group, sensors, params):
             df2 = pd.concat([df2, df3], axis=0).reset_index(drop=True)
 
         df2['Subject'] = f'{group}_{sid.split("_")[-1]}'
-        # df2['BBS'] = parameter[sid]['day_1']['BBS']
         df2['BBS'] = parameter[sid]['day_1']['BBS'] < 45
         df = pd.concat([df, df2], axis=0).reset_index(drop=True)
     return df
