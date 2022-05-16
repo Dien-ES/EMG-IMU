@@ -16,6 +16,7 @@ COLILOC = {'r': {'habd': 2, 'ke': 3, 'apf': 4, 'adf': 5},
            'l': {'habd': 8, 'ke': 9, 'apf': 10, 'adf': 11}}
 
 
+# Heuristic onset split
 def specific_sensor_plot(data, set_onset=None):
     signal = data.emg.raw
     side, motion, power = data.motion.split('_')
@@ -109,6 +110,7 @@ def set_onset_info(group):
                         json.dump(onset_info, f)
 
 
+# onset dataset split
 def set_onset_dataset(group):
     with open(f'../parameter/onset/onset_info_{group}.json', 'r') as f:
         onset_info = json.load(f)
@@ -125,27 +127,38 @@ def set_onset_dataset(group):
                     onset_subjects[day]['BBS'] = int(bbs)
                 for motion in onset_info[group][sid][day].keys():
                     if motion not in onset_subjects[day].keys():
-                        onset_subjects[day][motion] = []
+                        onset_subjects[day][motion] = {'EMG': [], 'IMU': []}
 
                     emg = subject.days[day].indivs[motion][0].emg.raw
+                    imu = subject.days[day].indivs[motion][0].imu.raw
                     for start, end in onset_info[group][sid][day][motion]:
-                        bool_idx = (emg.xrange > start) & (emg.xrange < end)
-                        data = EMG(emg.data[bool_idx, :], preprocessing=True)
-                        # onset_subjects[day][motion] += [data]
+                        emg_idx = (emg.xrange > start) & (emg.xrange < end)
+                        imu_idx = (imu.xrange > start) & (imu.xrange < end)
+                        emg_data = EMG(emg.data[emg_idx, :], preprocessing=True)
                         s, m, _ = motion.split('_')
                         col = COLILOC[s][m]
-                        onset_subjects[day][motion] += [
-                            np.nanmax(data.rms.data, axis=0)[col]]
+                        onset_subjects[day][motion]['EMG'] += [
+                            np.nanmax(emg_data.rms.data, axis=0)[col]]
+
+                        if imu_idx.sum() == 0:
+                            print(group, sid, day, motion)
+                        else:
+                            imu_data = IMU(imu.data[imu_idx, :],
+                                           preprocessing=True)
+                            onset_subjects[day][motion]['IMU'] += [
+                                np.nanmax(imu_data.rms.data, axis=0)[
+                                col * 6:(col + 1) * 6]]
 
         onset_dataset[sid] = onset_subjects
 
-    with open(f'../parameter/onset/{group}_onset_dataset.json', 'w') as f:
-        json.dump(onset_dataset, f)
+    with open(f'../parameter/onset/{group}_onset_dataset.pkl', 'wb') as f:
+        pickle.dump(onset_dataset, f)
 
 
+# EMG, IMU parameter extraction
 def set_onset_parameter(group):
-    with open(f'../parameter/onset/{group}_onset_dataset.json', 'r') as f:
-        onset_dataset = json.load(f)
+    with open(f'../parameter/onset/{group}_onset_dataset.pkl', 'rb') as f:
+        onset_dataset = pickle.load(f)
 
     parameter = {}
     for sid in onset_dataset.keys():
@@ -161,27 +174,28 @@ def set_onset_parameter(group):
                 if sensor not in parameter[sid][day].keys():
                     parameter[sid][day][sensor] = {}
 
+                # EMG parameter
                 try:
                     rms_max = np.array(
-                        onset_dataset[sid][day][f'r_{motion}_max'])
+                        onset_dataset[sid][day][f'r_{motion}_max']['EMG'])
                 except:
                     rms_max = None
 
                 try:
                     mvc = rms_max / np.mean(
-                        onset_dataset[sid][day][f'l_{motion}_max'])
+                        onset_dataset[sid][day][f'l_{motion}_max']['EMG'])
                 except:
                     mvc = None
 
                 try:
                     rms_min = np.array(
-                        onset_dataset[sid][day][f'r_{motion}_min'])
+                        onset_dataset[sid][day][f'r_{motion}_min']['EMG'])
                 except:
                     rms_min = None
 
                 try:
                     submvc = rms_min / np.mean(
-                        onset_dataset[sid][day][f'l_{motion}_min'])
+                        onset_dataset[sid][day][f'l_{motion}_min']['EMG'])
                 except:
                     submvc = None
 
@@ -189,6 +203,19 @@ def set_onset_parameter(group):
                 parameter[sid][day][sensor]['RMS_min'] = rms_min
                 parameter[sid][day][sensor]['MVC'] = mvc
                 parameter[sid][day][sensor]['subMVC'] = submvc
+
+                # IMU parameter
+                try:
+                    imu_max = np.array(onset_dataset[sid][day][f'r_{motion}_max']['IMU'])
+                except:
+                    imu_max = None
+                try:
+                    imu_min = np.array(onset_dataset[sid][day][f'r_{motion}_min']['IMU'])
+                except:
+                    imu_min = None
+
+                parameter[sid][day][sensor]['IMU_max'] = imu_max
+                parameter[sid][day][sensor]['IMU_min'] = imu_min
 
     with open(f'../parameter/onset/{group}_onset_parameter.pkl', 'wb') as f:
         pickle.dump(parameter, f)

@@ -72,10 +72,6 @@ class EMG:
             self.rect = Signal(proc_data.data,
                                xrange, 'Rectification', fs)
 
-#             try:
-#                 proc_data.filter(method='despike')
-#             except:
-#                 pass
             proc_data.rms()
             self.rms = Signal(proc_data.data,
                               xrange * int(fs * 0.25), f'RMS', fs)
@@ -94,15 +90,36 @@ class EMG:
 
 class IMU:
     def __init__(self, data, preprocessing=None, fs=148):
-        self.data = data
-        self.fs = fs
+        # self.columns = data.columns
+        xrange = np.arange(0, len(data), 1) / fs
+        proc_data = Processing(np.array(data), fs)
+        self.raw = Signal(proc_data.data, xrange, 'Raw', fs)
 
-    def preprocessing(self):
-        #
-        self.data = None
+        if preprocessing:
+            proc_data.normalization()
+            self.norm = Signal(proc_data.data,
+                               xrange, 'Normalization', fs)
 
-    def plot(self):
-        return None
+            try:
+                proc_data.filter(method='despike')
+            except:
+                pass
+            self.filtering = Signal(proc_data.data,
+                                    xrange, f'Filter', fs)
+
+            proc_data.rms()
+            self.rms = Signal(proc_data.data,
+                              xrange * int(fs * 0.25), f'RMS', fs)
+
+    def prep_comparison_plot(self):
+        fig, axes = plt.subplots(2, 6, figsize=(30, 10),
+                                 sharex=True,
+                                 sharey=True,
+                                 constrained_layout=True)
+
+        self.norm.plot(color='grey', alpha=0.5, axes=axes)
+        self.filtering.plot(color='yellow', alpha=0.5, axes=axes)
+        self.rms.plot(color='red', alpha=1.0, axes=axes)
 
 
 class Processing:
@@ -149,9 +166,9 @@ class Processing:
         frame = int(self.fs * 0.5)
         step = int(self.fs * 0.25)
         rms = []
-        for i in range(frame, self.data.size, step):
+        for i in range(frame, self.data.shape[0], step):
             x = self.data[i - frame:i, :]
-            rms.append(np.sqrt(np.mean(x ** 2, axis=0)))
+            rms.append(np.mean(x ** 2, axis=0) ** (1/2))
         self.data = np.array(rms)
 
     def sigma_filter(self):

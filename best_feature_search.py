@@ -36,15 +36,18 @@ VALS_SJ = [VAL0_SJ + VAL1_SJ, VAL2_SJ + VAL3_SJ, VAL4_SJ + VAL5_SJ]
 def feature_combinations(sensors, params):
     sensor_comb = []
     param_comb = []
-    for i in range(1, 5):
+    for i in range(1, len(params)+1):
         sensor_comb += list(combinations(sensors, i))
         param_comb += list(combinations(params, i))
     combs = list(product(*[sensor_comb, param_comb]))
     return combs
 
 
+# COMBS = feature_combinations(['TFL', 'QF', 'GC', 'TA'],
+#                              ['RMS_max', 'RMS_min', 'MVC', 'subMVC'])
 COMBS = feature_combinations(['TFL', 'QF', 'GC', 'TA'],
-                             ['RMS_max', 'RMS_min', 'MVC', 'subMVC'])
+                             ['RMS_max', 'RMS_min', 'MVC', 'subMVC',
+                              'IMU_max', 'IMU_min'])
 
 
 def data_helper(group, sensors, params):
@@ -58,9 +61,19 @@ def data_helper(group, sensors, params):
             df3 = pd.DataFrame()
             for sensor in sensors:
                 for param in params:
-                    arr = parameter[sid][day][sensor][param]
-                    df4 = pd.DataFrame(arr, columns=[f'{sensor}/{param}'])
-                    df3 = pd.concat([df3, df4], axis=1).reset_index(drop=True)
+                    if param[:3] == 'IMU':
+                        for i, col in enumerate([f'{c}_{param[-3:]}' for c in
+                                                 ['ACC_X', 'ACC_Y', 'ACC_Z',
+                                                  'GYR_X', 'GYR_Y', 'GYR_Z']]):
+                            arr = parameter['sid_1']['day_1']['TFL'][param][:,
+                                  i]
+                            df4 = pd.DataFrame(arr, columns=[f'{sensor}/{col}'])
+                            df3 = pd.concat([df3, df4], axis=1).reset_index(
+                                drop=True)
+                    else:
+                        arr = parameter[sid][day][sensor][param]
+                        df4 = pd.DataFrame(arr, columns=[f'{sensor}/{param}'])
+                        df3 = pd.concat([df3, df4], axis=1).reset_index(drop=True)
             df3['Day'] = day.split('_')[-1]
             df2 = pd.concat([df2, df3], axis=0).reset_index(drop=True)
 
@@ -122,14 +135,20 @@ def preprocessing(train_X, val_X, test_X):
 
 
 def metric_result(test_Y, test_pred, test_prob):
-    TN, FP, FN, TP = confusion_matrix(test_Y, test_pred).ravel()
+    try:
+        TN, FP, FN, TP = confusion_matrix(test_Y, test_pred).ravel()
+        sen = TP / (TP + FN)
+        spe = TN / (TN + FP)
+        PPV = TP / (TP + FP)
+        NPV = TN / (FN + TN)
+
+    except:
+        sen, spe, PPV, NPV = 0, 0, 0, 0
+
     acc = accuracy_score(test_Y, test_pred)
     f1 = f1_score(test_Y, test_pred)
-    mtc = matthews_corrcoef(test_Y, test_pred)
-    sen = TP / (TP + FN)
-    spe = TN / (TN + FP)
-    PPV = TP / (TP + FP)
-    NPV = TN / (FN + TN)
+    mcc = matthews_corrcoef(test_Y, test_pred)
+
     try:
         AUC = roc_auc_score(test_Y, test_prob[:, 1])
     except:
@@ -137,7 +156,7 @@ def metric_result(test_Y, test_pred, test_prob):
               ' ROC AUC score is not defined in that case.')
         AUC = 0
 
-    return acc, f1, mtc, AUC, sen, spe, PPV, NPV
+    return acc, f1, mcc, AUC, sen, spe, PPV, NPV
 
 
 def roc_auc_result(test_Y, test_prob):
@@ -185,7 +204,7 @@ def modeling(COMBS, result='valid', oversampler=None):
                 results += [metric_result(val_Y, pred, prob)]
 
         result_df = pd.DataFrame(np.mean(results, axis=0).reshape(1, -1),
-                                 columns=['Accuracy', 'F-score', 'MTC', 'AUC',
+                                 columns=['Accuracy', 'F-score', 'MCC', 'AUC',
                                           'Sensitivity', 'Specificity',
                                           'PPV', 'NPV'])
         result_df['Sensors'] = [sensors]
@@ -202,6 +221,8 @@ def modeling(COMBS, result='valid', oversampler=None):
         total_result = pd.concat([total_result, result_df], axis=0).reset_index(
             drop=True)
 
-    total_result = total_result.iloc[:, [8, 9, 10, 11, 0, 1, 2, 3, 4, 5, 6, 7]]\
-        .sort_values('MTC', ascending=False).reset_index(drop=True)
+    total_result = pd.concat([total_result.iloc[:, -4:],
+                             total_result.iloc[:, :-4]], axis=1)
+    total_result = total_result.sort_values('MCC', ascending=False).\
+        reset_index(drop=True)
     return total_result
