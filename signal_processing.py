@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.signal import iirnotch, butter, lfilter
 import matplotlib.pyplot as plt
-import neurokit2 as nk
+# import neurokit2 as nk
 import seaborn as sns
 from tqdm import tqdm
 sns.set_style("whitegrid")
