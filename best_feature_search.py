@@ -33,30 +33,30 @@ sns.set_style("whitegrid")
 # VALS_SJ = [VAL0_SJ + VAL1_SJ, VAL2_SJ + VAL3_SJ, VAL4_SJ + VAL5_SJ]
 
 # 3fold
-# test_sj = ['Healthy_4', 'Healthy_8', 'Healthy_12', 'Healthy_16', 'Healthy_20',
-#            'Disabled_1', 'Disabled_7', 'Disabled_19', 'Disabled_11',
-#            'Disabled_16', 'Disabled_20']
-#
-# VAL0_SJ = ['Healthy_1', 'Healthy_5', 'Healthy_10', 'Healthy_15', 'Healthy_19',
-#            'Disabled_2', 'Disabled_4', 'Disabled_5', 'Disabled_3',
-#            'Disabled_6']
-# VAL1_SJ = ['Healthy_2', 'Healthy_6', 'Healthy_7', 'Healthy_11', 'Healthy_17',
-#            'Disabled_8', 'Disabled_21', 'Disabled_14',
-#            'Disabled_12']
-# VAL2_SJ = ['Healthy_3', 'Healthy_9', 'Healthy_13', 'Healthy_14', 'Healthy_18',
-#            'Disabled_9', 'Disabled_22', 'Disabled_10', 'Disabled_15',
-#            'Disabled_18']
-# VALS_SJ = [VAL0_SJ, VAL1_SJ, VAL2_SJ]
+test_sj = ['Healthy_4', 'Healthy_8', 'Healthy_12', 'Healthy_16', 'Healthy_20',
+           'Disabled_1', 'Disabled_7', 'Disabled_19', 'Disabled_11',
+           'Disabled_16', 'Disabled_20']
+
+VAL0_SJ = ['Healthy_1', 'Healthy_5', 'Healthy_10', 'Healthy_15', 'Healthy_19',
+           'Disabled_2', 'Disabled_4', 'Disabled_5', 'Disabled_3',
+           'Disabled_6']
+VAL1_SJ = ['Healthy_2', 'Healthy_6', 'Healthy_7', 'Healthy_11', 'Healthy_17',
+           'Disabled_8', 'Disabled_21', 'Disabled_14',
+           'Disabled_12']
+VAL2_SJ = ['Healthy_3', 'Healthy_9', 'Healthy_13', 'Healthy_14', 'Healthy_18',
+           'Disabled_9', 'Disabled_22', 'Disabled_10', 'Disabled_15',
+           'Disabled_18']
+VALS_SJ = [VAL0_SJ, VAL1_SJ, VAL2_SJ]
 
 # 2fold
-test_sj = [f'Healthy_{i}' for i in [3,4,8,9,12,13]] +\
-          [f'Disabled_{i}' for i in [1,7,9,11,15,16,19,20]]
-
-VAL0_SJ = [f'Healthy_{i}' for i in [1,5,10,14,15,16,19]] +\
-          [f'Disabled_{i}' for i in [2,3,4,5,6,10]]
-VAL1_SJ = [f'Healthy_{i}' for i in [2,6,7,11,17,18,20]] +\
-          [f'Disabled_{i}' for i in [8,12,14,18,21,22]]
-VALS_SJ = [VAL0_SJ, VAL1_SJ]
+# test_sj = [f'Healthy_{i}' for i in [3,4,8,9,12,13]] +\
+#           [f'Disabled_{i}' for i in [1,7,9,11,15,16,19,20]]
+#
+# VAL0_SJ = [f'Healthy_{i}' for i in [1,5,10,14,15,16,19]] +\
+#           [f'Disabled_{i}' for i in [2,3,4,5,6,10]]
+# VAL1_SJ = [f'Healthy_{i}' for i in [2,6,7,11,17,18,20]] +\
+#           [f'Disabled_{i}' for i in [8,12,14,18,21,22]]
+# VALS_SJ = [VAL0_SJ, VAL1_SJ]
 
 
 def feature_combinations(sensors, params):
@@ -73,10 +73,14 @@ def feature_combinations(sensors, params):
 #                              ['RMS_max', 'RMS_min', 'MVC', 'subMVC'])
 COMBS = feature_combinations(['TFL', 'QF', 'GC', 'TA'],
                              ['RMS_max', 'RMS_min', 'MVC', 'subMVC',
-                              'IMU_max', 'IMU_min'])
+                              'RMS_max_na', 'RMS_min_na',
+                              'aRMSmax_over_naRMSmin'])
+# COMBS = feature_combinations(['TFL', 'QF', 'GC', 'TA'],
+#                              ['RMS_max', 'RMS_min', 'MVC', 'subMVC',
+#                               'IMU_max', 'IMU_min'])
 
 
-def data_helper(group, sensors, params, BBS_cut=29):
+def data_helper(group, sensors, params, BBS_cut=44):
     with open(f'../parameter/onset/{group}_onset_parameter.pkl', 'rb') as f:
         parameter = pickle.load(f)
 
@@ -117,9 +121,9 @@ def cv_dataset(VALS_SJ, k):
     return train_sj, val_sj
 
 
-def dataset_split(sensors, params, k):
-    healthy_df = data_helper('Healthy', sensors, params)
-    disabled_df = data_helper('Disabled', sensors, params)
+def dataset_split(sensors, params, BBS_cut, k):
+    healthy_df = data_helper('Healthy', sensors, params, BBS_cut)
+    disabled_df = data_helper('Disabled', sensors, params, BBS_cut)
     dataset = pd.concat([healthy_df, disabled_df]).reset_index(drop=True)
     dataset = dataset.loc[
         dataset.isnull().sum(1) != len(dataset.columns)].reset_index(drop=True)
@@ -203,13 +207,13 @@ def roc_auc_result(test_Y, test_prob):
     return auc
 
 
-def modeling(COMBS, result='valid', oversampler=None, k_fold=2):
+def modeling(COMBS, BBS_cut, result='valid', oversampler=None, k_fold=3):
     total_result = pd.DataFrame()
     for sensors, params in tqdm(COMBS):
         results = []
         for k in range(k_fold):
             train_X, train_Y, val_X, val_Y, test_X, test_Y = dataset_split(
-                sensors, params, k)
+                sensors, params, BBS_cut, k)
             train_X, val_X, test_X = preprocessing(train_X, val_X, test_X)
             if oversampler:
                 try:

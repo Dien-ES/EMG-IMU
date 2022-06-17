@@ -199,10 +199,31 @@ def set_onset_parameter(group):
                 except:
                     submvc = None
 
+                try:
+                    not_affected_RMS_max = \
+                        onset_dataset[sid][day][f'l_{motion}_max']['EMG']
+                except:
+                    not_affected_RMS_max = None
+
+                try:
+                    not_affected_RMS_min = \
+                        onset_dataset[sid][day][f'l_{motion}_min']['EMG']
+                except:
+                    not_affected_RMS_min = None
+
+                try:
+                    aRMSmax_naRMSmin_ratio = \
+                        rms_max/not_affected_RMS_min
+                except:
+                    aRMSmax_naRMSmin_ratio = None
+
                 parameter[sid][day][sensor]['RMS_max'] = rms_max
                 parameter[sid][day][sensor]['RMS_min'] = rms_min
                 parameter[sid][day][sensor]['MVC'] = mvc
                 parameter[sid][day][sensor]['subMVC'] = submvc
+                parameter[sid][day][sensor]['RMS_max_na'] = not_affected_RMS_max
+                parameter[sid][day][sensor]['RMS_min_na'] = not_affected_RMS_min
+                parameter[sid][day][sensor]['aRMSmax_over_naRMSmin'] = aRMSmax_naRMSmin_ratio
 
                 # IMU parameter
                 try:

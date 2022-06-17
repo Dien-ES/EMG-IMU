@@ -41,11 +41,11 @@ def params_comb_filter(result_df, params):
 
 
 def oversampling_comparison_result(params, x, metric, title, figsize=(21, 15)):
-    df = pd.read_csv('../parameter/onset/test_results_(EMG+IMU)_(oversampling).csv')
+    df = pd.read_csv('../parameter/onset/test_results_(EMG+IMU)_(oversampling)_(2fold).csv')
     df = params_comb_filter(df, params)
     df['is_oversampling'] = True
 
-    df2 = pd.read_csv('../parameter/onset/test_results_(EMG+IMU)_(not oversampling).csv')
+    df2 = pd.read_csv('../parameter/onset/test_results_(EMG+IMU)_(not oversampling)_(2fold).csv')
     df2 = params_comb_filter(df2, params)
     df2['is_oversampling'] = False
 
@@ -58,7 +58,7 @@ def oversampling_comparison_result(params, x, metric, title, figsize=(21, 15)):
     plt.figure(figsize=figsize)
     sns.barplot(data=df4, x=x, y=metric,
                 hue='is_oversampling', palette='Set2',
-                order=df4.pivot_table(index=x, values=metric, aggfunc='mean').
+                order=df.pivot_table(index=x, values=metric, aggfunc='mean').
                 sort_values(by=metric, ascending=False).index)
     plt.tick_params(labelsize=20)
     plt.legend(fontsize=20, loc='lower left')
